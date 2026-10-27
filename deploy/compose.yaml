@@ -1,0 +1,50 @@
+name: lottery
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    logging: *logging
+    env_file: ../.env
+    environment:
+      MYSQL_DATABASE: lottery
+      MYSQL_USER: lottery
+      TZ: Asia/Shanghai
+    command: ["--innodb-buffer-pool-size=128M", "--max-connections=30"]
+    ports: ["127.0.0.1:9999:3306"]
+    volumes: ["mysql:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: lottery-backend:local
+    restart: unless-stopped
+    logging: *logging
+    env_file: ../backend/.env
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["../runtime:/app/runtime"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+  scheduler:
+    image: lottery-backend:local
+    restart: unless-stopped
+    logging: *logging
+    env_file: ../backend/.env
+    command: ["python", "-m", "lottery.cli", "scheduler"]
+    volumes: ["../runtime:/app/runtime"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    profiles: ["scheduled"]
+volumes:
+  mysql:

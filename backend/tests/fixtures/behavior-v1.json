@@ -1,0 +1,155 @@
+{
+  "seed": 42,
+  "tickets": {
+    "dlt": [
+      {
+        "front": [
+          2,
+          8,
+          15,
+          16,
+          18
+        ],
+        "back": [
+          2,
+          3
+        ]
+      },
+      {
+        "front": [
+          2,
+          3,
+          6,
+          28,
+          35
+        ],
+        "back": [
+          2,
+          4
+        ]
+      },
+      {
+        "front": [
+          2,
+          13,
+          15,
+          33,
+          35
+        ],
+        "back": [
+          4,
+          7
+        ]
+      },
+      {
+        "front": [
+          1,
+          11,
+          18,
+          28,
+          29
+        ],
+        "back": [
+          5,
+          6
+        ]
+      },
+      {
+        "front": [
+          6,
+          7,
+          10,
+          14,
+          22
+        ],
+        "back": [
+          2,
+          7
+        ]
+      }
+    ],
+    "ssq": [
+      {
+        "front": [
+          2,
+          8,
+          9,
+          24,
+          29,
+          33
+        ],
+        "back": [
+          5
+        ]
+      },
+      {
+        "front": [
+          1,
+          2,
+          6,
+          7,
+          14,
+          19
+        ],
+        "back": [
+          3
+        ]
+      },
+      {
+        "front": [
+          1,
+          14,
+          15,
+          17,
+          18,
+          20
+        ],
+        "back": [
+          7
+        ]
+      },
+      {
+        "front": [
+          9,
+          15,
+          19,
+          26,
+          27,
+          32
+        ],
+        "back": [
+          1
+        ]
+      },
+      {
+        "front": [
+          5,
+          7,
+          9,
+          11,
+          28,
+          33
+        ],
+        "back": [
+          11
+        ]
+      }
+    ]
+  },
+  "versions": {
+    "frequency": "frequency-v1-4b309d2ad9b6d8c3",
+    "logistic": "logistic-v1-4b309d2ad9b6d8c3",
+    "freq_odd": "freq_odd-v1-4b309d2ad9b6d8c3",
+    "freq_size": "freq_size-v1-4b309d2ad9b6d8c3",
+    "freq_thirds": "freq_thirds-v1-4b309d2ad9b6d8c3",
+    "freq_prime": "freq_prime-v1-4b309d2ad9b6d8c3",
+    "freq_omission": "freq_omission-v1-4b309d2ad9b6d8c3",
+    "freq_odd_omission": "freq_odd_omission-v1-4b309d2ad9b6d8c3",
+    "freq_structure": "freq_structure-v1-4b309d2ad9b6d8c3",
+    "freq_numeric": "freq_numeric-v1-4b309d2ad9b6d8c3",
+    "freq_association": "freq_association-v1-4b309d2ad9b6d8c3",
+    "freq_all": "freq_all-v1-4b309d2ad9b6d8c3",
+    "forest_all": "forest_all-v1-4b309d2ad9b6d8c3",
+    "neural_all": "neural_all-v1-4b309d2ad9b6d8c3"
+  }
+}

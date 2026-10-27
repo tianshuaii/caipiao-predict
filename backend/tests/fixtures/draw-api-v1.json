@@ -1,0 +1,45 @@
+{
+  "items": [
+    {
+      "game": "ssq",
+      "issue": "2026121",
+      "draw_date": "2026-10-22",
+      "front": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "back": [
+        1
+      ],
+      "prizes": {
+        "1": {
+          "amount": "5000000",
+          "count": 1
+        },
+        "6": {
+          "amount": "5",
+          "count": 10
+        }
+      },
+      "source_url": "https://www.cwl.gov.cn/",
+      "sales": null,
+      "pool": null,
+      "rule_version": "ssq-2026014",
+      "id": 1,
+      "revision": 1,
+      "source": "cwl",
+      "sources": [
+        "cwl"
+      ],
+      "conflict": false,
+      "updated_at": "<timestamp>"
+    }
+  ],
+  "total": 1,
+  "limit": 20,
+  "offset": 0
+}

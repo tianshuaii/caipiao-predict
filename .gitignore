@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+node_modules/
+.pnpm-store/
+dist/
+runtime/
+backups/
+.DS_Store
+*.egg-info/
+
+*.tsbuildinfo
