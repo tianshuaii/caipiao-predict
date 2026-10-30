@@ -49,5 +49,5 @@ def test_point_in_time_mode_retains_training_snapshot_and_matches_visible_data()
     report=evaluate_history('ssq',rows,test_count=1,simulations=1,history_provider=lambda actual:rows[:160])
     assert report['data_mode']=='retained-as-of'
     assert report['forecast_audit'][0]['training_snapshot']==rows[:160]
-    assert len(report['strategies'])==15  # uniform plus fourteen candidates
+    assert len(report['strategies'])==17  # uniform plus sixteen candidates
     assert all(r['cost']==10 for r in report['strategies'])

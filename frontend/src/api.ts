@@ -39,7 +39,7 @@ export type PortfolioMetric = {
 export type PortfolioStatus = {
   control_groups: number; protocol: string; note: string;
   rows: { kind: string; strategy: string; rule_version: string; metrics: PortfolioMetric;
-    comparison: { uncertainty?: { any_prize: StatisticalInterval; first_prize: StatisticalInterval; net_per_period: StatisticalInterval; note: string }; periods: number; money_periods: number; strategy: PortfolioMetric; money_strategy: PortfolioMetric;
+    comparison: { random_tracks?: PortfolioMetric[]; random_money_tracks?: PortfolioMetric[]; uncertainty?: { any_prize: StatisticalInterval; first_prize: StatisticalInterval; net_per_period: StatisticalInterval; note: string }; periods: number; money_periods: number; strategy: PortfolioMetric; money_strategy: PortfolioMetric;
       random_any_prize_rate: number[] | null; random_first_prize_rate: number[] | null;
       random_net: number[] | null; random_roi: number[] | null;
     };
@@ -57,3 +57,40 @@ export type WinnerCase = {
   };
 };
 export type WinnerCases = { items: WinnerCase[]; total: number; limit: number; offset: number; notice: string };
+
+export type RankingObjective = 'brier' | 'any_prize' | 'first_prize' | 'roi';
+export type RankingStatus = {
+  objective: RankingObjective; minimum_periods: number; participants: string[]; note: string;
+  excluded: { strategy: string; issue: string; reason: string }[];
+  groups: { rule_version: string; issues: string[]; money_issues: string[];
+    excluded: { issue: string; missing_strategies: string[] }[];
+    money_excluded: { issue: string; reason: string }[];
+    rows: { strategy: string; brier: number | null; metrics: PortfolioMetric; money_metrics: PortfolioMetric;
+      value: number | null; periods: number; rank: number | null; reason: string }[];
+  }[];
+};
+
+export type DataQuality = Coverage & {
+  missing: string[]; missing_years?: number[]; inventory_verified?: boolean;
+  latest_draw_date: string | null; last_observed_at: string | null; first_observed_at: string | null;
+  observation_age_seconds: number | null; prize_complete_rate: number | null;
+};
+export type DrawDetails = Draw & { observations: {
+  source: string; raw_id: number | null; conflict: boolean; created_at: string; data: Draw;
+}[] };
+
+export type FeatureCatalog = { version:string; windows:(number|string)[]; note:string;
+  features:{id:string;formula:string;null_semantics:string;shape:string}[] };
+export type FeatureAnalysis = {
+  version:string; as_of:string; cutoff_issue:string; dataset_hash:string; sample_size:number; available_records:number;
+  first_issue:string|null; last_issue:string|null; short_window:boolean; notes:string[];
+  theory:{number_probability:number;assumption:string};
+  numbers:{number:number;count:number;frequency:number|null;current_omission:number|null;left_censored:boolean;
+    max_omission:number|null;mean_omission:number|null;completed_intervals:number;hot_rank:number|null;cold_rank:number|null}[];
+  distributions:Record<string,{value:number;count:number;frequency:number|null;theoretical_probability:number}[]>;
+  combinations:{issue:string;features:Record<string,number|number[]|null>}[];
+};
+
+export type ResearchModelCatalog = { models:{id:string;features:string[]}[];windows:number[];max_periods:number;max_budget:number;note:string };
+export type ResearchJobConfig = { game:Game;kind:'train'|'backtest';model:string;window:number;periods:number;budget:number;seed:number;issue_to:string };
+export type ResearchJob = { duration_seconds?:number|null; id:number;status:string;config:ResearchJobConfig;created_at:string;started_at:string|null;finished_at:string|null;snapshot_hash:string;recipe_hash:string;error:string|null;result?:Record<string,unknown>|null };

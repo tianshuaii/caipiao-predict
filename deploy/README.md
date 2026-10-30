@@ -25,7 +25,7 @@ Do not start the local scheduler while the cloud scheduler runs. Local `scripts/
 
 Deployed code as of 2026-10-26 collects and analyzes daily at 22:30 Asia/Shanghai, retrying incomplete data at 23:00, 23:30 and 00:00. Monday/Wednesday/Friday 08:00 reports only read saved valid predictions (five tickets per game). Monthly backtests run on day 1 at 06:00. This schedule is active in production. Candidate strategies are not proven to improve winning probability.
 
-Manual backup on the server: `sh /opt/lottery/deploy/backup.sh`. This writes a transaction-consistent SQL dump and prediction artifacts under `/opt/lottery/backups`, with SHA-256 checksums. Download backups regularly; a backup on the same server does not cover server loss.
+Manual backup on the server: `sh /opt/lottery/deploy/backup.sh`. This writes a transaction-consistent SQL dump plus prediction, research-model and monitoring runtime state under `/opt/lottery/backups`, with SHA-256 checksums. Run `sha256sum -c backups/<timestamp>/SHA256SUMS` from `/opt/lottery`. Download backups regularly; a backup on the same server does not cover server loss.
 
 Deployment verified 2026-10-23: 2,938 DLT + 3,518 SSQ records; both stored prediction snapshots verified; API and scheduler restart verified. First cloud backup: `/opt/lottery/backups/20261023T095330Z`. All three containers have `unless-stopped` restart policy; Docker and Nginx are enabled at boot. Backend tests passed both locally and in the Linux image (39 each).
 

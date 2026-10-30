@@ -10,7 +10,7 @@ SCHEMA='experiment-recipe-v1'
 EVIDENCE_PROTOCOL='prospective-e-v1'
 LEGACY_SELECTION='numpy-weighted-without-replacement-five-unique-v1'
 # Filled once from the probability-equivalent T10 baseline, never regenerated at runtime.
-BASELINE_HASHES={'frequency': '47e069efec4c20ac7425ac451f101daa7a3f867f22485c10613e35013f944396', 'logistic': 'f53bc70d0c4724818eac37fb9f472d11887aa6ada26b0499d5405c50787efee0', 'freq_odd': 'd1e68be7748cc1402a0a190c340411085c776eb274231976df97e95ee7bdbe33', 'freq_size': '260e28b6b9cb8165d01a882fc1e7fd702f91a92565413b1cae1445c92d539d9f', 'freq_thirds': 'd7e7d917ecbd2aeb7587817d69f2d7f52d7951a7472c1a05053293f64bf525d8', 'freq_prime': 'b70d0d738e77ab4022b8565e670285fbaf462c087e5dca506ec23d86cd71ac58', 'freq_omission': 'b6c05f2a3090ba8a082afd074fddf380c04b4dc9dbd8f8cf4788245b4cf97044', 'freq_odd_omission': '9d9a1c69c32cf6a5c4a2ccc5048bc6952a5d1171051dbd6170b1d2a04936ccad', 'freq_structure': 'cb1cfd3470a2d183cebf8c1ac228b4340734fd6ab08b10cf4178af1124989b29', 'freq_numeric': 'ba02e8ce020f44d2fde0701d9773e212d5709807eb09e8f28d1130a5a88685b2', 'freq_association': '91b99c5fa2fc94d8d29d0279b297bf0d0e0a5edf0528ca639bdf6fc7d9b6742d', 'freq_all': 'f36f2d7b84fe1d814862c8bc4b28d40a763984f91acf020de64625f144284f5d', 'forest_all': '49a7194f7599cac470333c6c552a65fd5727ca945e7f015fa985ef343b49ab3b', 'neural_all': '6cd8e30d4a3c32df548b4ef153b4c869c3923d98379bd16b71041859f9ade9e2'}
+BASELINE_HASHES={'frequency': 'edb2fc2d6487a866f6822fe6c313ff3f44e0bb67b5f7e405cd8decf8f2d7b18e', 'logistic': '911a28902e570b8d3b3eeeee82b4938957a4da449b015ab0ace81b022c65eccf', 'freq_odd': 'bc3932cf722058ee595a7a90062a38088aecf133c256affbdf00bda3c5c594dd', 'freq_size': '68e0bbbcdd13704b5cb23f53aec882cf386859593cd90995fb2389cd0ef1aff1', 'freq_thirds': '93c8351c2e438958e78977e7f56e5a3f832e2996638dd9b4d63f70839b9de7c5', 'freq_prime': 'df56de4565652f9a2dec1be2aafc052e50bca15f81e6f613e5d455bd2382637e', 'freq_omission': 'e1aad3db0241acd22d15fb5e381ada697804e77b3c07d8317a89e1a35af0f778', 'freq_odd_omission': 'd1674896e0fcad267e887d408367acf9b4431874e38a2955d4ab46415be6a9e5', 'freq_structure': '96d9a61bfcafc3e28d04d059bc647f12123718b182dde56df99870f11aba03b3', 'freq_numeric': '7da88d2acc36e6e291314e4d6bfbbed9189635e22bc3ce5dd1fc02bf0f52f37f', 'freq_association': 'bb3a4aaa84c8e6434c78dca46a48f05a531fe6f0b03ae01007059af58a924600', 'freq_all': 'db142dc7378382414f4b2368c2a6984bf8c1226b2b06a2883615fb6ff9f03643', 'forest_all': '51268a6b4bf787472af42c0121ae5d9a9ada1e17e6320d537931cbd635bb0a65', 'neural_all': '23ed213434659b370cd84c2ccebd2ed592aed31b2adb6c4f6629e7a8e0761744'}
 
 
 class _WithoutDocstrings(ast.NodeTransformer):
@@ -47,7 +47,9 @@ def describe(strategy,selection_protocol=None):
                 'encode':_digest(e.encoded),'validation':_digest(validate_ticket),
                 'selection':_digest(e.weighted_tickets)}
     if learned:
-        factory=m.forest_estimator if strategy=='forest_all' else m.neural_estimator if strategy=='neural_all' else m.logistic_estimator
+        factory=(m.forest_estimator if strategy=='forest_all' else m.boost_estimator if strategy=='boost_all'
+                 else m.neural_estimator if strategy=='neural_all' else m.ensemble_weights if strategy=='ensemble_all'
+                 else m.logistic_estimator)
         components.update(estimator=_digest(factory),scores=_digest(m.model_scores),calibration=_digest(m.calibrate_scores))
         if strategy in i.STRATEGIES:
             components.update({name:_digest(getattr(i,name)) for name in ('feature_sequence','_bank','feature_groups','group_features','omission_features')})

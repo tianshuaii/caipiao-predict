@@ -7,6 +7,10 @@ from .db import session_factory
 def main():
     parser=argparse.ArgumentParser(description='Lottery Lab operations')
     sub=parser.add_subparsers(dest='command',required=True)
+    worker=sub.add_parser('research-worker');worker.add_argument('--once',action='store_true')
+    watchdog=sub.add_parser('monitor',help='独立运行监控，默认仅记录不推送')
+    watchdog.add_argument('--watch',action='store_true')
+    watchdog.add_argument('--send',action='store_true',help='显式启用独立监控微信通知')
     sub.add_parser('init-db')
     sync=sub.add_parser('sync');sync.add_argument('--game',choices=['dlt','ssq','all'],default='all');sync.add_argument('--full',action='store_true')
     sub.add_parser('archive')
@@ -16,12 +20,24 @@ def main():
     run=sub.add_parser('run',help='同步、复盘、预测；不生成或发送通知');run.add_argument('--no-notify',action='store_true',help='兼容旧命令；run 已默认不发通知')
     backtest=sub.add_parser('backtest');backtest.add_argument('--game',choices=['dlt','ssq','all'],default='all');backtest.add_argument('--periods',type=int,default=60)
     backtest.add_argument('--data-mode',choices=['current-revised','retained-as-of'],default='current-revised')
+    statistics=sub.add_parser('statistics',help='离线快照统计检验；不采集或推送')
+    statistics.add_argument('dataset');statistics.add_argument('--simulations',type=int,default=999)
+    statistics.add_argument('--seed',type=int,default=20261028)
     sub.add_parser('scheduler')
     sub.add_parser('status')
     sub.add_parser('evaluate')
     replay=sub.add_parser('replay');replay.add_argument('id',type=int)
     notify=sub.add_parser('notify');notify.add_argument('id',type=int)
     args=parser.parse_args()
+    if args.command=='monitor':
+        from .monitoring import monitor
+        monitor(args.watch,args.send);return
+    if args.command=='research-worker':
+        from .jobs import worker
+        worker(args.once);return
+    if args.command=='statistics':
+        from .statistics import run_file
+        print(json.dumps({'report_id':run_file(args.dataset,args.simulations,args.seed)}));return
     if args.command=='init-db':
         from alembic.config import Config
         from alembic import command

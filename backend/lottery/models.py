@@ -195,3 +195,42 @@ class WinnerCase(Base):
     status = Column(String(30), nullable=False)
     parser_version = Column(String(30), nullable=False)
     active = Column(Boolean, nullable=False, default=True)
+
+class AdminSession(Base):
+    __tablename__ = 'admin_sessions'
+    token_hash = Column(String(64), primary_key=True)
+    credential_hash = Column(String(64), nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+
+class LoginThrottle(Base):
+    __tablename__ = 'login_throttles'
+    key = Column(String(64), primary_key=True)
+    bucket = Column(Integer, nullable=False)
+    attempts = Column(Integer, nullable=False)
+
+class ResearchJob(Base):
+    __tablename__ = 'research_jobs'
+    id = Column(Integer, primary_key=True)
+    active_slot = Column(Integer, unique=True, nullable=True)
+    status = Column(String(20), nullable=False)
+    submitted_by = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    config = Column(JSON, nullable=False)
+    snapshot = Column(JSON, nullable=False)
+    snapshot_hash = Column(String(64), nullable=False)
+    recipe_hash = Column(String(64), nullable=True)
+    result = Column(JSON)
+    error = Column(String(300))
+
+class SimulationRun(Base):
+    __tablename__ = 'simulation_runs'
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    version = Column(String(40), nullable=False)
+    config = Column(JSON, nullable=False)
+    snapshot = Column(JSON, nullable=False)
+    snapshot_hash = Column(String(64), nullable=False)
+    result = Column(JSON, nullable=False)
+    result_hash = Column(String(64), nullable=False)

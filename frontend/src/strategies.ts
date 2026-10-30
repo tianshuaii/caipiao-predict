@@ -12,7 +12,9 @@ export const strategyCatalog: Record<string, { name: string; features: string }>
   freq_numeric: { name: '频率＋数值特征', features: '基础特征＋上期和值、跨度、均值、AC、尾数和及交互项' },
   freq_association: { name: '频率＋关联特征', features: '基础特征＋重号、邻号、同尾及历史相邻/同尾/二码共现' },
   forest_all: { name: '全指标＋随机森林', features: '同全指标特征，64棵浅层树、单线程、时间顺序概率校准' },
+  boost_all: { name: '全指标＋树提升', features: '同全指标特征，48轮低资源直方图树提升、时间顺序概率校准' },
   neural_all: { name: '全指标＋小型神经网络', features: '同全指标特征，单隐藏层16节点、L2正则、时间顺序概率校准' },
+  ensemble_all: { name: '全指标＋概率集成', features: '随机森林、树提升与小型神经网络的预注册等权概率平均' },
   freq_all: { name: '全指标联合', features: '基础特征＋遗漏、组合结构、数值和关联特征' },
 };
 export function strategyName(version: string) {

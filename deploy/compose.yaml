@@ -46,5 +46,25 @@ services:
       mysql:
         condition: service_healthy
     profiles: ["scheduled"]
+  research-worker:
+    image: lottery-backend:local
+    restart: unless-stopped
+    logging: *logging
+    env_file: ../backend/.env
+    command: ["python", "-m", "lottery.cli", "research-worker"]
+    volumes: ["../runtime:/app/runtime"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+  monitor:
+    image: lottery-backend:local
+    restart: unless-stopped
+    logging: *logging
+    env_file: ../backend/.env
+    command: ["python", "-m", "lottery.cli", "monitor", "--watch"]
+    volumes: ["../runtime:/app/runtime"]
+    depends_on:
+      mysql:
+        condition: service_healthy
 volumes:
   mysql:

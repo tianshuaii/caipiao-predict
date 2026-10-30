@@ -152,3 +152,18 @@ def test_training_entrypoint_is_shared_without_changing_protocol():
 def test_conflicting_rows_cannot_enter_pure_calculation():
     with pytest.raises(ValueError,match='conflict'):
         analyze_features([{**rows()[0],'conflict':True}],'ssq','front','2025001',10)
+
+
+def test_distribution_reference_counts_and_empty_semantics():
+    result=analyze_features(rows(),'ssq','front','2026002',10)
+    assert result['theory']['number_probability']==pytest.approx(6/33)
+    for name,bins in result['distributions'].items():
+        assert sum(b['count'] for b in bins)==4
+        assert sum(b['theoretical_probability'] for b in bins)==pytest.approx(1)
+        assert sum(b['frequency'] for b in bins)==pytest.approx(1)
+    odd=next(b for b in result['distributions']['odd'] if b['value']==3)
+    assert odd['count']==4
+    assert odd['theoretical_probability']==pytest.approx(math.comb(17,3)*math.comb(16,3)/math.comb(33,6))
+    empty=analyze_features([],'ssq','back','2026002',10)
+    assert all(b['frequency'] is None for bins in empty['distributions'].values() for b in bins)
+    assert len(empty['distributions']['sum'])==16

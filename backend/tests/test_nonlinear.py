@@ -4,7 +4,7 @@ from lottery.experiments import probability_vectors, weighted_tickets
 from lottery.predict import generate_tickets
 from lottery.domain import validate_ticket
 
-@pytest.mark.parametrize('strategy',['forest_all','neural_all'])
+@pytest.mark.parametrize('strategy',['forest_all','boost_all','neural_all','ensemble_all'])
 @pytest.mark.parametrize('game',['ssq','dlt'])
 def test_nonlinear_candidates_valid_reproducible_and_registered(strategy,game):
     from lottery.indicators import STRATEGIES
@@ -66,7 +66,7 @@ def test_nonconverged_neural_candidate_does_not_block_other_forecasts(session,mo
     monkeypatch.setattr(module.MLPClassifier,'fit',fail)
     p=persist_prediction(session,'ssq',datetime(2026,10,23,8,tzinfo=TZ))
     candidates=list(session.scalars(select(CandidateForecast)))
-    assert len(candidates)==14
+    assert len(candidates)==16
     assert [f.model for f in candidates if f.error]==['neural_all']
     assert all(len(f.tickets)==5 for f in candidates if not f.error)
     assert p.strategy=='uniform-v1' and len(p.tickets)==5

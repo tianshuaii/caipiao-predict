@@ -34,3 +34,28 @@
 .research-result .balls { margin: 12px 0; }
 .research-saved-row span { flex: 1; min-width: 180px; }
 @media (max-width: 760px) { .research-zones { grid-template-columns: 1fr; gap: 0; } .research-panel { padding: 16px; } }
+
+.archive-panel { padding: 22px; margin-bottom: 20px; }
+.archive-panel p, .archive-observations p { margin: 10px 0; line-height: 1.7; overflow-wrap: anywhere; }
+.archive-panel summary, .archive-observations summary { cursor: pointer; padding: 10px 0; }
+.archive-filters, .archive-quality { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 14px; margin: 18px 0; }
+.archive-filters label { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.archive-filters input, .archive-filters select { min-width: 0; width: 100%; padding: 10px; border: 1px solid #dcdde8; border-radius: 8px; background: white; color: #26283f; }
+.archive-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.archive-observations { white-space: normal; padding: 16px 0; max-width: 900px; }
+.archive-observations a { text-decoration: underline; }
+@media(max-width:720px) { .archive-panel { padding: 16px; } .archive-panel .pagination { flex-wrap: wrap; gap: 12px; padding: 16px 0; } .archive-filters { grid-template-columns: 1fr; } }
+
+.analysis-panel { padding: 22px; }
+.analysis-panel p { margin: 12px 0; line-height: 1.7; overflow-wrap: anywhere; }
+.analysis-panel h3 { margin-top: 24px; }
+.analysis-panel summary { padding: 14px 0; cursor: pointer; }
+.analysis-controls, .analysis-controls form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 14px 0; }
+.analysis-controls label { display: flex; flex-direction: column; gap: 7px; }
+.analysis-panel input, .analysis-panel select { border: 1px solid #dcdde8; border-radius: 8px; padding: 9px; background: white; color: #26283f; max-width: 100%; }
+.analysis-chart { min-width: 0; margin: 18px 0; }
+.omission-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(70px,1fr)); gap: 8px; margin: 16px 0; }
+.omission-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px; border-radius: 9px; }
+.omission-cell small { font-size: 11px; }
+@media(max-width:720px) { .analysis-panel { padding: 16px; } .analysis-controls form { width: 100%; } }
+.model-json { overflow: auto; max-height: 450px; padding: 16px; background: #f7f7fb; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

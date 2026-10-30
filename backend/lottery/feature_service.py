@@ -165,11 +165,25 @@ def analyze_features(rows, game, zone, cutoff_issue, window='all'):
             denominator=singles[given[0]] if len(given)==1 else joint[given]
             conditional.append({'given':list(given),'denominator':denominator,'frequency':count/denominator})
         cooccurrence.append({'numbers':list(chosen),'count':count,'frequency':count/n,'conditional':conditional})
+    from scipy.stats import hypergeom
+    from .statistics import sum_pmf
+    theoretical={'sum':sum_pmf(maximum,k),
+                 'odd':hypergeom.pmf(np.arange(k+1),maximum,(maximum+1)//2,k),
+                 'small':hypergeom.pmf(np.arange(k+1),maximum,maximum//2,k)}
+    observed={'sum':Counter(c['features']['sum'] for c in combos),
+              'odd':Counter(c['features']['odd_even'][0] for c in combos),
+              'small':Counter(c['features']['small_big'][0] for c in combos)}
+    distributions={name:[{'value':value,'count':observed[name][value],
+                          'frequency':observed[name][value]/n if n else None,
+                          'theoretical_probability':float(probability)}
+                         for value,probability in enumerate(pmf) if probability>0]
+                   for name,pmf in theoretical.items()}
     digest=hashlib.sha256(json.dumps([{'issue':canonical_issue(r['issue']),'numbers':sorted(r[zone])} for r in selected],sort_keys=True).encode()).hexdigest()
     return {'version':VERSION,'game':game,'zone':zone,'cutoff_issue':cutoff_issue,'window':window,
             'sample_size':n,'available_records':available,'short_window':window!='all' and n<window,
             'first_issue':selected[0]['issue'] if n else None,'last_issue':selected[-1]['issue'] if n else None,
-            'dataset_hash':digest,'numbers':numbers,'combinations':combos,'cooccurrence':cooccurrence,
+            'theory':{'number_probability':p,'assumption':'每期独立、均匀、不放回选号；理论分布不是下一期预测。'},
+            'distributions':distributions,'dataset_hash':digest,'numbers':numbers,'combinations':combos,'cooccurrence':cooccurrence,
             'notes':['窗口按保留记录计数，不能证明官方连续全量覆盖；遗漏单位为记录。',
                      '完成间隔排除窗口首尾未完成区间；未出现号码的当前遗漏为窗口内下界。',
                      '共现仅列非零组合；同期开奖条件频率不是下期概率，少样本中的0或1不代表确定性。']}

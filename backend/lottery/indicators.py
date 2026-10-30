@@ -15,7 +15,7 @@ STRATEGIES = {
     'freq_all': ('odd', 'size', 'thirds', 'prime', 'omission', 'numeric', 'association'),
 }
 
-STRATEGIES.update({name: STRATEGIES['freq_all'] for name in ('forest_all', 'neural_all')})
+STRATEGIES.update({name: STRATEGIES['freq_all'] for name in ('forest_all', 'boost_all', 'neural_all', 'ensemble_all')})
 
 def omission_features(past):
     n, maximum = past.shape

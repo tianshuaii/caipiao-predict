@@ -16,10 +16,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 
 def run(*args,input=None,env=None):
-    return subprocess.run(args,input=input,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,env=env).stdout
+    completed=subprocess.run(args,input=input,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
+    if completed.returncode:
+        raise subprocess.CalledProcessError(completed.returncode,args,completed.stdout,completed.stderr)
+    return completed.stdout
 
 
 def sql(container,query):
@@ -78,7 +82,7 @@ def main():
             cfg=Config('backend/alembic.ini');command.upgrade(cfg,'head');command.upgrade(cfg,'head')
         finally:
             db.engine=previous;target.dispose()
-        assert sql(clone,'SELECT version_num FROM lottery.alembic_version').strip()==b'005'
+        assert sql(clone,'SELECT version_num FROM lottery.alembic_version').strip()==ScriptDirectory.from_config(cfg).get_current_head().encode()
         assert signature(clone)==before,'Migration changed business rows'
         report['migration_preserved_business_rows']=True
         # Exercise detection and recovery only inside the disposable copy.

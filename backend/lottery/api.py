@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 from typing import Annotated, Literal
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -10,16 +10,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from apscheduler.triggers.cron import CronTrigger
 from .config import RUNTIME
-from .db import session_factory
 from .domain import GAMES, TZ
 from .ingestion import coverage
 from .models import Draw, Experiment, Notification, Observation, Prediction, Run, Settlement
 
-app=FastAPI(title='拾数 · Lottery Lab',version='0.1.0')
-app.add_middleware(CORSMiddleware,allow_origins=['http://127.0.0.1:9998','http://localhost:9998'],allow_methods=['GET'],allow_headers=['Accept','Content-Type'])
+from .auth import access_control, database, router as auth_router
 
-def database():
-    with session_factory()() as session: yield session
+app=FastAPI(title='拾数 · Lottery Lab',version='0.1.0',dependencies=[Depends(access_control)])
+app.include_router(auth_router)
+app.add_middleware(CORSMiddleware,allow_origins=['http://127.0.0.1:9998','http://localhost:9998'],allow_methods=['GET'],allow_headers=['Accept','Content-Type'])
 
 DB=Annotated[Session,Depends(database)]
 Game=Literal['dlt','ssq']
@@ -71,10 +70,22 @@ def overview(db:DB):
     return {'games':games,'schedule':schedule_view(),'generated_at':datetime.now(TZ).isoformat()}
 
 @app.get('/api/draws')
-def draws(db:DB,game:Game='dlt',limit:Annotated[int,Query(ge=1,le=100)]=20,offset:Annotated[int,Query(ge=0)]=0):
-    query=select(Draw).where(Draw.game==game)
-    rows=list(db.scalars(query.order_by(Draw.issue.desc()).limit(limit).offset(offset)))
-    total=db.scalar(select(func.count()).select_from(Draw).where(Draw.game==game))
+def draws(db:DB,game:Game='dlt',limit:Annotated[int,Query(ge=1,le=100)]=20,offset:Annotated[int,Query(ge=0)]=0,
+          issue_from:Annotated[str | None,Query(pattern=r'^[0-9]{7}$')]=None,
+          issue_to:Annotated[str | None,Query(pattern=r'^[0-9]{7}$')]=None,
+          date_from:date | None=None,date_to:date | None=None,conflict:bool | None=None):
+    if issue_from and issue_to and issue_from>issue_to:
+        raise HTTPException(422,'起始期号不能晚于结束期号')
+    if date_from and date_to and date_from>date_to:
+        raise HTTPException(422,'起始日期不能晚于结束日期')
+    filters=[Draw.game==game]
+    if issue_from: filters.append(Draw.issue>=issue_from)
+    if issue_to: filters.append(Draw.issue<=issue_to)
+    if date_from: filters.append(Draw.draw_date>=date_from)
+    if date_to: filters.append(Draw.draw_date<=date_to)
+    if conflict is not None: filters.append(Draw.conflict.is_(conflict))
+    rows=list(db.scalars(select(Draw).where(*filters).order_by(Draw.issue.desc()).limit(limit).offset(offset)))
+    total=db.scalar(select(func.count()).select_from(Draw).where(*filters))
     return {'items':[draw_view(r) for r in rows],'total':total,'limit':limit,'offset':offset}
 
 @app.get('/api/draws/{game}/{issue}')
@@ -190,3 +201,137 @@ def evaluations(db:DB,game:Game='dlt',limit:Annotated[int,Query(ge=1,le=200)]=50
             'records':list(reversed(records))[offset:offset+limit],'comparison':comparison,
             'performance':performance_report(records,initial_capital),
             'note':'比较基于所选候选版本的共同有效期、同预算和同规则；失败与缺失明确列出。历史回测不计入前瞻样本。'}
+
+
+@app.get('/api/statistics')
+def statistics_reports(limit:Annotated[int,Query(ge=1,le=100)]=20,offset:Annotated[int,Query(ge=0)]=0):
+    from .statistics import read_report
+    files=sorted((RUNTIME/'statistics').glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)
+    items=[]
+    for file in files[offset:offset+limit]:
+        try:
+            report=read_report(file.stem,RUNTIME/'statistics')['report']
+            items.append({'id':file.stem,'version':report['version'],'dataset_sha256':report['dataset_sha256'],
+                          'post_hoc':report['post_hoc'],'total_tests':report['total_tests'],
+                          'significant_count':len(report['significant']),'groups':report['groups'],'skipped':report['skipped']})
+        except (ValueError,KeyError,OSError): items.append({'id':file.stem,'status':'integrity_error'})
+    return {'items':items,'total':len(files)}
+
+
+@app.get('/api/statistics/{report_id}')
+def statistics_report(report_id:str):
+    from .statistics import read_report
+    import re
+    if not re.fullmatch(r'[0-9a-f]{64}',report_id):raise HTTPException(422,'Invalid report id')
+    try:return {'id':report_id,**read_report(report_id,RUNTIME/'statistics')}
+    except FileNotFoundError as exc:raise HTTPException(404,'Report not found') from exc
+    except (ValueError,KeyError) as exc:raise HTTPException(409,'Report integrity failure') from exc
+
+@app.get('/api/rankings')
+def rankings(db:DB,game:Game='dlt',objective:Literal['brier','any_prize','first_prize','roi']='brier'):
+    from .ranking import ranking_status
+    return ranking_status(db,game,objective)
+
+from .jobs import JobConfig
+
+@app.get('/api/research/models')
+def research_models():
+    from .jobs import catalog
+    return catalog()
+
+@app.post('/api/research/jobs',status_code=202)
+def submit_research_job(config:JobConfig,db:DB):
+    from .jobs import create_job,job_view
+    from .auth import settings
+    try:return job_view(create_job(db,config,settings()[0]))
+    except ValueError as exc:
+        raise HTTPException(409 if 'active' in str(exc) else 422,str(exc)) from exc
+
+@app.get('/api/research/jobs')
+def research_jobs(db:DB,limit:Annotated[int,Query(ge=1,le=50)]=20,offset:Annotated[int,Query(ge=0)]=0):
+    from .models import ResearchJob
+    from .jobs import job_view
+    rows=db.scalars(select(ResearchJob).order_by(ResearchJob.id.desc()).limit(limit).offset(offset))
+    return {'items':[job_view(r) for r in rows],'total':db.scalar(select(func.count()).select_from(ResearchJob))}
+
+@app.get('/api/research/jobs/{job_id}')
+def research_job(job_id:int,db:DB):
+    from .models import ResearchJob
+    from .jobs import job_view
+    row=db.get(ResearchJob,job_id)
+    if not row:raise HTTPException(404,'任务不存在')
+    return job_view(row,True)
+
+@app.get('/api/visualizations')
+def visualizations(db:DB,source:Literal['experiment','job'],id:Annotated[int,Query(ge=1)],strategy:str=''):
+    from .models import ResearchJob,Experiment
+    from .visualization import visual_records
+    row=db.get(Experiment if source=='experiment' else ResearchJob,id)
+    if row is None:raise HTTPException(404,'研究记录不存在')
+    result=row.result or {}
+    if source=='job':
+        records=result.get('records',[]) if row.status=='succeeded' and row.config.get('kind')=='backtest' else []
+    else:
+        records=[f['evaluation'] for a in result.get('forecast_audit',[]) for f in a.get('forecasts',{}).values() if 'evaluation' in f]
+    choices=sorted({r['strategy'] for r in records}-{'uniform'})
+    if strategy and strategy not in choices:raise HTTPException(422,'策略不在此研究记录中')
+    selected=strategy or next(iter(choices),'')
+    try:projection=visual_records(records,selected) if selected else {'available':False,'groups':[],'note':'尚无可用的逐期评估记录；不会补造历史数据。'}
+    except ValueError as exc:raise HTTPException(422,str(exc)) from exc
+    return {'source':source,'id':id,'strategies':choices,**projection}
+
+@app.get('/api/research/combinations')
+def research_combinations(db:DB,config:Annotated[str,Query(max_length=2000)],issue:Annotated[str,Query(pattern=r'^[0-9]{7}$')]|None=None):
+    from .combinations import expand,simulate
+    try:
+        value=json.loads(config)
+        preview=expand(value)
+    except (ValueError,TypeError) as exc:raise HTTPException(422,str(exc)) from exc
+    if issue is None:return preview
+    row=db.scalar(select(Draw).where(Draw.game==preview['config']['game'],Draw.issue==issue))
+    if row is None:raise HTTPException(404,'未找到该期开奖数据')
+    if row.conflict:raise HTTPException(409,'该期开奖存在来源冲突，暂不结算')
+    try:return {**simulate(value,row.data),'draw_fingerprint':row.fingerprint}
+    except ValueError as exc:raise HTTPException(422,str(exc)) from exc
+
+from .simulation import SimulationConfig
+
+@app.post('/api/simulations',status_code=201)
+def submit_simulation(config:SimulationConfig,db:DB):
+    from .simulation import create_simulation,view
+    try:return view(create_simulation(db,config),True)
+    except ValueError as exc:raise HTTPException(422,str(exc)) from exc
+
+@app.get('/api/simulations')
+def simulations(db:DB,limit:Annotated[int,Query(ge=1,le=50)]=20,offset:Annotated[int,Query(ge=0)]=0):
+    from .models import SimulationRun
+    from .simulation import view
+    return {'items':[view(r) for r in db.scalars(select(SimulationRun).order_by(SimulationRun.id.desc()).limit(limit).offset(offset))],
+            'total':db.scalar(select(func.count()).select_from(SimulationRun))}
+
+@app.get('/api/simulations/{run_id}')
+def simulation_detail(run_id:int,db:DB,replay:bool=False):
+    from .models import SimulationRun
+    from .simulation import view,replay as replay_run
+    row=db.get(SimulationRun,run_id)
+    if not row:raise HTTPException(404,'模拟不存在')
+    try:return replay_run(row) if replay else view(row,True)
+    except ValueError as exc:raise HTTPException(409,str(exc)) from exc
+
+@app.get('/api/monitoring')
+def monitoring_status():
+    from .monitoring import read_state
+    try:
+        state=read_state(RUNTIME)
+        stamp=state.get('checked_at')
+        age=(datetime.now(timezone.utc)-datetime.fromisoformat(stamp)).total_seconds() if stamp else None
+        return {**state,'monitor_fresh':age is not None and 0<=age<180}
+    except (OSError,ValueError,TypeError):raise HTTPException(503,'监控状态不可读，请检查监控进程及状态文件')
+
+@app.get('/api/research/export')
+def research_export(db:DB,game:Game='dlt'):
+    from .exports import build_export,encode
+    # SQLite's legacy driver does not begin a read snapshot on SELECT alone.
+    connection=db.connection()
+    if connection.dialect.name=='sqlite':connection.exec_driver_sql('BEGIN')
+    return JSONResponse(encode(build_export(db,game,RUNTIME/'statistics')),headers={'Cache-Control':'no-store'})

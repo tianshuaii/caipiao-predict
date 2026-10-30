@@ -3,12 +3,19 @@ from lottery.generation_versions import LEGACY_VERSIONS
 
 
 def test_baseline_registry_retains_old_ids():
-    assert registry.registered_versions(registry.LEGACY_SELECTION)==LEGACY_VERSIONS
-    assert all(v!=LEGACY_VERSIONS[k] for k,v in registry.registered_versions().items())
+    legacy=registry.registered_versions(registry.LEGACY_SELECTION)
+    assert {k:legacy[k] for k in LEGACY_VERSIONS}==LEGACY_VERSIONS
+    assert all(v!=LEGACY_VERSIONS[k] for k,v in registry.registered_versions().items() if k in LEGACY_VERSIONS)
     descriptor=registry.describe('forest_all')
     assert descriptor['config']['training_window']==300
     assert descriptor['components']['estimator']
     assert descriptor['feature_groups'] and descriptor['environment']
+
+
+def test_new_boost_and_blend_have_separate_versions():
+    versions=registry.registered_versions()
+    assert versions['boost_all'].startswith('boost_all-v2-')
+    assert versions['ensemble_all'].startswith('ensemble_all-v2-')
 
 
 def test_ast_ignores_comments_docstrings_and_location():

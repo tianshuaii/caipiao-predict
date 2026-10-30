@@ -1,11 +1,19 @@
+import { ExportPanel } from './components/ExportPanel';
+import { MonitoringPanel } from './components/MonitoringPanel';
+import { CombinationPanel } from './components/CombinationPanel';
+import { BacktestCharts } from './components/BacktestCharts';
 import { strategyName } from './strategies';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@heroui/react';
-import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp, Clock3, Database, FlaskConical, History, LayoutDashboard, ListChecks, Menu, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, Database, FlaskConical, History, LayoutDashboard, ListChecks, Menu, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { get, type Draw, type Experiment, type Game, type Overview, type Prediction, type Tasks, type StrategyStatus } from './api';
+import { get, type Experiment, type Game, type Overview, type Prediction, type Tasks, type StrategyStatus } from './api';
 import { ResearchPanel } from './components/ResearchPanel';
 import { WinnerCasesPanel } from './components/WinnerCasesPanel';
+import { ModelCenter } from './components/ModelCenter';
+import { AnalysisPanel } from './components/AnalysisPanel';
+import { ArchivePanel } from './components/ArchivePanel';
+import { RankingPanel } from './components/RankingPanel';
 import { StrategyPanel } from './components/StrategyPanel';
 import { Balls } from './components/Balls';
 import { DrawTable, money } from './components/DrawTable';
@@ -13,23 +21,24 @@ import { DrawTable, money } from './components/DrawTable';
 const pages = [
   { id: 'overview', label: '数据概览', icon: LayoutDashboard, eyebrow: 'OVERVIEW', title: '把每一期，研究清楚。' },
   { id: 'draws', label: '开奖档案', icon: Database, eyebrow: 'DRAW ARCHIVE', title: '从第一期开始，有据可查。' },
+  { id: 'analysis', label: '号码分析', icon: BarChart3, eyebrow: 'NUMBER ANALYSIS', title: '理解历史，也理解不确定性。' },
   { id: 'review', label: '预测与复盘', icon: History, eyebrow: 'PREDICTIONS & REVIEW', title: '留下预测，也记录结果。' },
   { id: 'experiments', label: '策略实验室', icon: FlaskConical, eyebrow: 'EXPERIMENTS', title: '用证据检验每一个想法。' },
+  { id: 'models', label: '模型中心', icon: FlaskConical, eyebrow: 'MODEL CENTER', title: '让每次实验，都可追溯。' },
+  { id: 'combinations', label: '组合模拟', icon: FlaskConical, eyebrow: 'TICKET SIMULATION', title: '展开每一注，核对每一笔。' },
   { id: 'research', label: '约束选号研究', icon: FlaskConical, eyebrow: 'SELECTION RESEARCH', title: '把条件，变成可复现的实验。' },
   { id: 'cases', label: '一等奖票型', icon: ListChecks, eyebrow: 'WINNING TICKET REPORTS', title: '看看公开报道中的中奖彩票。' },
+  { id: 'exports', label: '研究报表', icon: ListChecks, eyebrow: 'RESEARCH REPORTS', title: '把结论与边界，一起留下。' },
   { id: 'tasks', label: '运行记录', icon: ListChecks, eyebrow: 'SYSTEM ACTIVITY', title: '每一次更新，都有记录。' },
 ];
 const gameNames = { dlt: '超级大乐透', ssq: '福彩双色球' };
 const statusNames: Record<string, string> = { success: '已完成', partial: '部分完成', failed: '失败', running: '运行中', sent: '通道已受理', pending: '等待发送', not_configured: '未配置', uncertain: '送达待确认', sending: '发送待确认' };
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) : '—';
 
-export default function App({ onLogout }: { onLogout?: () => void }) {
+export default function App({ onLogout, onLogin, adminName }: { onLogout?: () => void; onLogin?: () => void; adminName?: string }) {
   const [page, setPage] = useState('overview');
   const [game, setGame] = useState<Game>('dlt');
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [rows, setRows] = useState<Draw[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [strategies, setStrategies] = useState<StrategyStatus | null>(null);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
@@ -41,13 +50,12 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
 
   const refresh = useCallback(() => setRevision(v => v + 1), []);
   useEffect(() => { const timer = setInterval(refresh, 60000); return () => clearInterval(timer); }, [refresh]);
-  useEffect(() => { setRows([]); setPredictions([]); setExperiments([]); setStrategies(null); }, [game, page, offset]);
+  useEffect(() => { setPredictions([]); setExperiments([]); setStrategies(null); }, [game, page]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError('');
     async function load() {
       const requests: Promise<unknown>[] = [get<Overview>('/overview', controller.signal).then(setOverview)];
-      if (page === 'draws') requests.push(get<{ items: Draw[]; total: number }>(`/draws?game=${game}&offset=${offset}`, controller.signal).then(r => { setRows(r.items); setTotal(r.total); }));
       if (page === 'review') requests.push(get<{ items: Prediction[] }>(`/predictions?game=${game}`, controller.signal).then(r => setPredictions(r.items)));
       if (page === 'experiments') requests.push(get<{ items: Experiment[] }>(`/experiments?game=${game}`, controller.signal).then(r => setExperiments(r.items)));
       if (page === 'experiments') requests.push(get<StrategyStatus>(`/strategies?game=${game}`, controller.signal).then(setStrategies));
@@ -56,7 +64,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
     }
     load().catch(e => { if (e.name !== 'AbortError') setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [page, game, offset, revision]);
+  }, [page, game, revision]);
   const current = overview?.games[game];
   const pageMeta = pages.find(p => p.id === page)!;
   const totalHistory = overview ? Object.values(overview.games).reduce((s, g) => s + g.coverage.count, 0) : 0;
@@ -72,13 +80,14 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       <div className="sidebar-footer"><span className={`source-dot ${!overview?.schedule.scheduler.running ? 'warning' : ''}`} /><span>{overview?.schedule.scheduler.running ? '本地调度运行中' : '本地研究模式'}<small>Asia / Shanghai</small></span><ShieldCheck size={17} /></div>
     </aside>
     <main>
-      <header className="topbar"><div className="breadcrumb"><Button className="icon-button mobile-menu" aria-label="打开导航" onPress={() => setMenu(true)}><Menu size={20} /></Button><span>研究工作台</span><ChevronRight size={13} /><strong>{pageMeta.label}</strong></div><div className="topbar-right"><span className="local-badge"><span /> LOCAL WORKSPACE</span><span className="avatar">田</span>{onLogout && <Button className="text-button" onPress={onLogout}>退出登录</Button>}</div></header>
+      <header className="topbar"><div className="breadcrumb"><Button className="icon-button mobile-menu" aria-label="打开导航" onPress={() => setMenu(true)}><Menu size={20} /></Button><span>研究工作台</span><ChevronRight size={13} /><strong>{pageMeta.label}</strong></div><div className="topbar-right"><span className="local-badge"><span /> LOCAL WORKSPACE</span><span className="avatar">田</span>{adminName ? <><span>{adminName}</span><Button className="text-button" onPress={onLogout}>退出管理</Button></> : <Button className="text-button" onPress={onLogin}>管理员登录</Button>}</div></header>
       <div className="main-content">
         <section className="page-heading"><div><div className="eyebrow">{pageMeta.eyebrow}<span />LOTTERY RESEARCH</div><h1>{pageMeta.title}</h1><p>官方数据、可追溯预测与统计实验，在一个清晰的工作台里。</p></div><Button className="refresh-button" onPress={refresh} isDisabled={loading}><RefreshCw size={16} className={loading ? 'spin' : ''} />{loading ? '更新中' : '刷新数据'}</Button></section>
+        {page === 'tasks' && <MonitoringPanel/>}
         {error && <div className="error-banner" role="alert"><Activity size={18} /><span>{error} {overview && '当前展示上次成功加载的数据。'}</span><Button className="text-button" onPress={refresh}>重试</Button></div>}
         {!overview && !error && <div className="loading-state"><span className="loader" />正在读取本地研究数据…</div>}
         {overview && <>
-          <div className="context-bar"><div className="game-switch" aria-label="选择彩种">{(['dlt', 'ssq'] as Game[]).map(g => <Button key={g} className={game === g ? 'selected' : ''} aria-pressed={game === g} onPress={() => { setGame(g); setOffset(0); }}><span className={`game-dot ${g}`} />{gameNames[g]}</Button>)}</div><span className="last-update"><Clock3 size={13} />更新于 {dateTime(overview.generated_at)}</span></div>
+          <div className="context-bar"><div className="game-switch" aria-label="选择彩种">{(['dlt', 'ssq'] as Game[]).map(g => <Button key={g} className={game === g ? 'selected' : ''} aria-pressed={game === g} onPress={() => { setGame(g); }}><span className={`game-dot ${g}`} />{gameNames[g]}</Button>)}</div><span className="last-update"><Clock3 size={13} />更新于 {dateTime(overview.generated_at)}</span></div>
           {page === 'overview' && current && <>
             <div className="metric-grid">
               <Metric label="历史数据总量" value={totalHistory.toLocaleString()} unit="期" icon={<Database size={19} />} footer={`${current.coverage.count.toLocaleString()} 期${gameNames[game]} · ${current.coverage.complete ? '号码覆盖完整' : '部分历史待补齐'}`} />
@@ -92,10 +101,14 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
             <div className="analysis-grid"><section className="panel"><PanelHeading title="最近 20 期 · 号码和值" subtitle="DRAW DISTRIBUTION" right={<span className="chart-legend"><span />{game === 'ssq' ? '红球' : '前区'}和值</span>} /><div className="chart-wrap"><ResponsiveContainer width="100%" height={210}><AreaChart data={[...current.recent].reverse().map(r => ({ issue: r.issue.slice(-3), sum: r.front.reduce((a, b) => a + b, 0) }))} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}><defs><linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7771ee" stopOpacity={0.2} /><stop offset="100%" stopColor="#7771ee" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#eaeaf1" /><XAxis dataKey="issue" tick={{ fontSize: 11, fill: '#9294a5' }} axisLine={false} tickLine={false} minTickGap={20} /><YAxis tick={{ fontSize: 11, fill: '#9294a5' }} axisLine={false} tickLine={false} /><Tooltip formatter={value => [value, '和值']} labelFormatter={label => `第 ${label} 期`} contentStyle={{ borderRadius: 10, border: '1px solid #ebebf1', fontSize: 12 }} /><Area type="monotone" dataKey="sum" stroke="#7771ee" strokeWidth={2.4} fill="url(#areaFill)" isAnimationActive={false} /></AreaChart></ResponsiveContainer></div><p className="chart-footnote">走势仅描述历史分布，不代表下一期的开奖方向。</p></section><section className="panel"><PanelHeading title="号码出现频次" subtitle="LAST 20 DRAWS" /><div className="frequency-grid">{current.frequency.map(f => <div key={f.number} className="frequency-cell" style={{ background: `rgba(111, 103, 228, ${0.045 + f.count / 20 * 0.5})` }} title={`号码 ${f.number}：出现 ${f.count} 次`}><strong>{String(f.number).padStart(2, '0')}</strong><span>{f.count} 次</span></div>)}</div><p className="chart-footnote">{game === 'ssq' ? '红球' : '前区'}号码 · 颜色深浅表示出现频次</p></section></div>
             <section className="panel"><PanelHeading title="最近 20 期开奖档案" subtitle="RECENT DRAWS" right={<Button className="text-button" onPress={() => navigate('draws')}>全部 {current.coverage.count.toLocaleString()} 期 <ChevronRight size={14} /></Button>} /><DrawTable rows={current.recent} /></section>
           </>}
-          {page === 'draws' && current && <section className="panel"><PanelHeading title={`${gameNames[game]} · 历史开奖`} subtitle={`${current.coverage.first_issue || '—'} — ${current.coverage.last_issue || '—'}`} right={<span className="pill purple">共 {total.toLocaleString()} 期</span>} /><div aria-busy={loading}><DrawTable rows={rows} /></div><div className="pagination"><span>第 {offset + 1}–{Math.min(offset + 20, total)} 条 / 共 {total} 条</span><div><Button className="pagination-button" isDisabled={offset === 0 || loading} onPress={() => setOffset(v => Math.max(0, v - 20))}><ChevronLeft size={16} />上一页</Button><Button className="pagination-button" isDisabled={offset + 20 >= total || loading} onPress={() => setOffset(v => v + 20)}>下一页<ChevronRight size={16} /></Button></div></div></section>}
+          {page === 'draws' && <ArchivePanel key={game} game={game} revision={revision} />}
+          {page === 'analysis' && <AnalysisPanel key={game} game={game} latestIssue={current?.latest?.issue ?? null} />}
           {page === 'review' && <div className="review-list">{predictions.length ? predictions.map(p => <section className="panel" key={p.id}><PanelHeading title={`第 ${p.issue} 期 · ${gameNames[p.game]}`} subtitle={`生成于 ${dateTime(p.created_at)} · 开奖 ${p.draw_date}`} right={<span className={`pill ${p.settlement ? 'green' : 'purple'}`}>{p.settlement ? '已复盘' : p.actual ? '等待结算' : '等待开奖'}</span>} /><PredictionCard prediction={p} review /><details className="provenance"><summary>查看溯源信息</summary><dl><dt>训练 / 输入截止期</dt><dd>{p.cutoff_issue}</dd><dt>策略与随机种子</dt><dd>{p.strategy} / {p.seed}</dd><dt>数据快照 SHA256</dt><dd>{p.dataset_hash}</dd><dt>代码 SHA256</dt><dd>{p.provenance.code_sha256}</dd></dl></details></section>) : <section className="panel empty"><History size={28} /><strong>还没有正式预测记录</strong><p>开奖前生成的每一批号码都会保留在这里，开奖后自动核对。</p></section>}</div>}
-          {page === 'experiments' && <><StrategyPanel data={strategies} /><ExperimentView experiments={experiments} /></>}
+          {page === 'experiments' && <><RankingPanel key={game} game={game} revision={revision} /><StrategyPanel data={strategies} /><ExperimentView experiments={experiments} /></>}
+          {page === 'models' && <ModelCenter key={game} game={game} latestIssue={current?.latest?.issue ?? null} adminName={adminName} />}
+          {page === 'combinations' && <CombinationPanel key={game} game={game} adminName={adminName}/>}
           {page === 'research' && <ResearchPanel key={game} game={game} />}
+          {page === 'exports' && <ExportPanel key={game} game={game}/>}
           {page === 'cases' && <WinnerCasesPanel key={game} game={game} revision={revision} />}
           {page === 'tasks' && tasks && <TaskView tasks={tasks} />}
           <footer className="page-footer"><span><ShieldCheck size={13} /> 官方来源 · 预测留痕 · 独立回测</span><span>公平独立开奖下，历史数据不能保证提高中奖概率。所有收益均为模拟。</span></footer>
@@ -115,7 +128,7 @@ function PredictionCard({ prediction: p, review = false }: { prediction: Predict
 function ExperimentView({ experiments }: { experiments: Experiment[] }) {
   const latest = experiments[0];
   if (!latest) return <section className="panel empty"><FlaskConical size={30} /><strong>等待第一份实验报告</strong><p>使用按时间滚动的样本外回测，与相同注数的随机基线比较。</p></section>;
-  return <><section className="experiment-intro"><div><span className="pill purple">探索性研究</span><h2>一个模型，需要比“看起来有效”更有说服力。</h2><p>历史回测仅作探索性比较；正式策略根据上方独立前瞻验证决定。</p></div><div className="experiment-count"><strong>{latest.evaluation_periods}</strong><span>期计划验证</span></div></section><section className="panel"><PanelHeading title="策略对照实验" subtitle={`${latest.from_issue} — ${latest.to_issue} · ${latest.protocol.version}`} /><div className="table-scroll"><table className="experiment-table"><thead><tr><th>策略</th><th>Brier 分数 ↓</th><th>平均命中球数 / 注</th><th>模拟成本</th><th>已知模拟奖金</th><th>校正 p 值</th></tr></thead><tbody>{latest.strategies.map(s => <tr key={s.strategy}><td><strong>{strategyName(s.strategy)}</strong>{s.strategy === 'uniform' && <small>对照基线</small>}{s.evaluated_periods != null && <small>共同有效 {s.evaluated_periods} 期 · 本模型失败 {s.failed_periods ?? 0} 期</small>}</td><td>{s.brier?.toFixed(6) ?? '暂无有效样本'}</td><td>{s.mean_hits?.toFixed(3) ?? '—'}</td><td>¥{money(s.cost)}</td><td>¥{money(s.known_return)}{s.pending_tickets > 0 && <small>{s.pending_tickets} 注待结算</small>}</td><td>{s.holm_p == null ? '基准' : s.holm_p.toFixed(4)}</td></tr>)}</tbody></table></div><div className="experiment-notes">{latest.comparison && <p>共同有效 {latest.comparison.issues.length} 期，排除 {latest.comparison.excluded.length} 期；详细原因保留于实验报告。</p>}<p><CircleHelp size={16} />Brier 分数衡量号码边际概率误差，越小越好；它不是整注中奖概率。</p><p>{latest.random_simulations} 次随机模拟的平均命中球数 95% 参考区间：{latest.random_hit_interval?.map(x => x.toFixed(3)).join(' – ') ?? '暂无共同有效样本'}。同注数、同成本比较。</p><p>训练及校准只使用目标期之前的数据；多个候选比较采用 Holm 校正，历史回测不触发自动切换，前瞻门槛见上方。</p></div></section><section className="panel"><PanelHeading title="实验记录" subtitle="EXPERIMENT LOG" /><div className="experiment-log">{experiments.map(e => <div key={e.id}><FlaskConical size={18} /><div><strong>#{e.id} · {e.from_issue} — {e.to_issue}</strong><p>{e.evaluation_periods} 期验证 · {dateTime(e.created_at)}</p></div><span className="pill neutral">可复现</span></div>)}</div></section></>;
+  return <><section className="experiment-intro"><div><span className="pill purple">探索性研究</span><h2>一个模型，需要比“看起来有效”更有说服力。</h2><p>历史回测仅作探索性比较；正式策略根据上方独立前瞻验证决定。</p></div><div className="experiment-count"><strong>{latest.evaluation_periods}</strong><span>期计划验证</span></div></section><section className="panel"><PanelHeading title="策略对照实验" subtitle={`${latest.from_issue} — ${latest.to_issue} · ${latest.protocol.version}`} /><div className="table-scroll"><table className="experiment-table"><thead><tr><th>策略</th><th>Brier 分数 ↓</th><th>平均命中球数 / 注</th><th>模拟成本</th><th>已知模拟奖金</th><th>校正 p 值</th></tr></thead><tbody>{latest.strategies.map(s => <tr key={s.strategy}><td><strong>{strategyName(s.strategy)}</strong>{s.strategy === 'uniform' && <small>对照基线</small>}{s.evaluated_periods != null && <small>共同有效 {s.evaluated_periods} 期 · 本模型失败 {s.failed_periods ?? 0} 期</small>}</td><td>{s.brier?.toFixed(6) ?? '暂无有效样本'}</td><td>{s.mean_hits?.toFixed(3) ?? '—'}</td><td>¥{money(s.cost)}</td><td>¥{money(s.known_return)}{s.pending_tickets > 0 && <small>{s.pending_tickets} 注待结算</small>}</td><td>{s.holm_p == null ? '基准' : s.holm_p.toFixed(4)}</td></tr>)}</tbody></table></div><div className="experiment-notes">{latest.comparison && <p>共同有效 {latest.comparison.issues.length} 期，排除 {latest.comparison.excluded.length} 期；详细原因保留于实验报告。</p>}<p><CircleHelp size={16} />Brier 分数衡量号码边际概率误差，越小越好；它不是整注中奖概率。</p><p>{latest.random_simulations} 次随机模拟的平均命中球数 95% 参考区间：{latest.random_hit_interval?.map(x => x.toFixed(3)).join(' – ') ?? '暂无共同有效样本'}。同注数、同成本比较。</p><p>训练及校准只使用目标期之前的数据；多个候选比较采用 Holm 校正，历史回测不触发自动切换，前瞻门槛见上方。</p></div></section><section className="panel"><BacktestCharts key={latest.id} source="experiment" id={latest.id}/></section><section className="panel"><PanelHeading title="实验记录" subtitle="EXPERIMENT LOG" /><div className="experiment-log">{experiments.map(e => <div key={e.id}><FlaskConical size={18} /><div><strong>#{e.id} · {e.from_issue} — {e.to_issue}</strong><p>{e.evaluation_periods} 期验证 · {dateTime(e.created_at)}</p></div><span className="pill neutral">可复现</span></div>)}</div></section></>;
 }
 
 function TaskView({ tasks }: { tasks: Tasks }) {

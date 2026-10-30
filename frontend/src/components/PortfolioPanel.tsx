@@ -1,3 +1,4 @@
+import { RandomTracks } from './RandomTracks';
 import type { PortfolioStatus, StatisticalInterval } from '../api';
 
 const percent = (v: number | null) => v == null ? '—' : `${(v * 100).toFixed(2)}%`;
@@ -26,7 +27,7 @@ export function PortfolioPanel({ data }: { data: PortfolioStatus | undefined }) 
         <tr><td>模拟净收益</td><td>{row.comparison.money_periods ? money(row.comparison.money_strategy.net) : '暂无同期完整样本'}</td><td>{band(row.comparison.random_net, true)}</td></tr>
         <tr><td>模拟ROI</td><td>{percent(row.comparison.money_strategy.roi)}</td><td>{band(row.comparison.random_roi)}</td></tr>
       </tbody></table></div>
-      {row.comparison.uncertainty && <div>
+      <RandomTracks comparison={row.comparison}/>{row.comparison.uncertainty && <div>
         <p>策略减同期100组对照均值 · 95%分块Bootstrap区间：任意奖比例差 {interval(row.comparison.uncertainty.any_prize)}；一等奖比例差 {interval(row.comparison.uncertainty.first_prize)}；每期净收益差 {interval(row.comparison.uncertainty.net_per_period,true)}。</p>
         <p>中奖比较 {row.comparison.uncertainty.any_prize.periods} 期，金额比较 {row.comparison.uncertainty.net_per_period.periods} 期；按 {row.comparison.uncertainty.any_prize.block_length} 期块，配置重采样 {row.comparison.uncertainty.any_prize.replicates} 次（种子 {row.comparison.uncertainty.any_prize.seed}）。{row.comparison.uncertainty.note}</p>
       </div>}
