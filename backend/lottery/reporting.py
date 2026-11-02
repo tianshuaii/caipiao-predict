@@ -2,10 +2,21 @@ from datetime import datetime
 import hashlib
 from sqlalchemy import select
 from .domain import GAMES, TZ
+from .game_specs import game_spec, registered_games
 from .models import Draw, Prediction, Settlement
 
 def balls(ticket):
+    if 'basic' in ticket:
+        return ' '.join(f'{n:02d}' for n in ticket['basic']) + ' + 特别 ' + f'{ticket["special"][0]:02d}'
+    if 'positions' in ticket:
+        return ' '.join(str(n) for n in ticket['positions'][:6]) + ' + ' + str(ticket['positions'][6])
     return ' '.join(f'{n:02d}' for n in ticket['front']) + ' + ' + ' '.join(f'{n:02d}' for n in ticket['back'])
+
+
+def hit_text(row):
+    if 'basic_hits' in row: return f'命中 {row["basic_hits"]}+{row["special_hits"]}'
+    if 'position_hits' in row: return f'命中位置 {row["position_hits"]}'
+    return f'命中 {row["front_hits"]}+{row["back_hits"]}'
 
 def build_report(session, run, now=None):
     now=now or datetime.now(TZ)
@@ -14,7 +25,7 @@ def build_report(session, run, now=None):
     lines = [f'报告 #{run.id} · 北京时间 {now:%Y-%m-%d %H:%M}', '所有金额为单式、不追加的模拟奖金。']
     signature = ['morning-v2']
     for game, info in run.details.items():
-        lines.extend(['', f'## {GAMES[game]["name"]}'])
+        lines.extend(['', f'## {game_spec(game,"2020100" if game=="qxc" else "2026001").name}'])
         latest = session.scalar(select(Draw).where(Draw.game == game).order_by(Draw.issue.desc()).limit(1))
         if latest:
             lines.append(f'最新开奖 {latest.issue}（{latest.draw_date}）：{balls(latest.data)}')
@@ -26,7 +37,7 @@ def build_report(session, run, now=None):
             for i, row in enumerate(settlement.results, 1):
                 amount = '待公布' if row['amount'] is None else row['amount']+' 元'
                 level = f'{row["level"]} 等奖' if row['level'] else '未中奖'
-                lines.append(f'{i}. {balls(row)} → 命中 {row["front_hits"]}+{row["back_hits"]}，{level}，{amount}')
+                lines.append(f'{i}. {balls(row)} → {hit_text(row)}，{level}，{amount}')
             lines.append(f'成本 {settlement.summary["cost"]} 元；已确认奖金 {settlement.summary["known_amount"]} 元；待结算 {settlement.summary["pending"]} 注。')
             signature.append(settlement.draw_fingerprint)
         else:
@@ -51,11 +62,11 @@ def send_morning_report(now=None):
     from .notify import queue_report, deliver
     from .workflow import workflow_lock
     now=(now or datetime.now(TZ)).astimezone(TZ)
-    if now.weekday() not in (0,2,4) or now.hour!=8 or now.minute>=5:
+    if now.hour!=8 or now.minute>=5:
         return {'status':'outside_send_window'}
     with workflow_lock(),session_factory()() as session:
         details={}
-        for game in GAMES:
+        for game in registered_games():
             try:
                 load_calendar(session,now.year)
                 latest=session.scalar(select(Draw).where(Draw.game==game).order_by(Draw.issue.desc()).limit(1))

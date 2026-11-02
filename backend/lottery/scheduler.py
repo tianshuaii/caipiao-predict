@@ -47,14 +47,15 @@ def scheduled_run(now=None):
 def morning_report(now=None):
     from .reporting import send_morning_report
     now=now or datetime.now(TZ)
-    if now.weekday() not in (0,2,4) or now.hour!=8 or now.minute>=5: return
+    if now.hour!=8 or now.minute>=5: return
     print(json.dumps(send_morning_report(now),ensure_ascii=False),flush=True)
 
 
 def monthly_evaluation():
     from .experiments import backtest
     with session_factory()() as s:
-        for game in ['dlt','ssq']: backtest(s,game)
+        from .game_specs import registered_games
+        for game in registered_games(): backtest(s,game)
 
 
 def build_scheduler():
@@ -62,7 +63,7 @@ def build_scheduler():
     scheduler.add_job(scheduled_run,'cron',hour=22,minute=30,id='nightly-analysis')
     scheduler.add_job(scheduled_run,'cron',hour=23,minute='0,30',id='nightly-retry')
     scheduler.add_job(scheduled_run,'cron',hour=0,minute=0,id='midnight-final-retry')
-    scheduler.add_job(morning_report,'cron',day_of_week='mon,wed,fri',hour=8,minute=0,id='morning-report')
+    scheduler.add_job(morning_report,'cron',hour=8,minute=0,id='morning-report')
     scheduler.add_job(heartbeat,'interval',seconds=30,id='heartbeat')
     scheduler.add_job(monthly_evaluation,'cron',day=1,hour=6,minute=0,id='monthly-evaluation')
     return scheduler
