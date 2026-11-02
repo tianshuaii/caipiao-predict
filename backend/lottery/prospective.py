@@ -28,6 +28,10 @@ def versions():
     from .generation_versions import registered_versions
     return registered_versions()
 
+
+def candidate_versions(game):
+    return {'bayesian': 'bayesian-zone-v1'} if game in ('qlc', 'qxc') else versions()
+
 def utc(value):
     return value.astimezone(timezone.utc).replace(tzinfo=None)
 
@@ -69,23 +73,33 @@ def freeze_candidates(session, prediction, now=None):
     if not history or any(r['issue']>=prediction.issue for r in history):
         raise ValueError('Future data in candidate input')
     result=[]
-    for model,version in versions().items():
+    for model,version in candidate_versions(prediction.game).items():
         existing=session.scalar(select(CandidateForecast).where(CandidateForecast.game==prediction.game,CandidateForecast.issue==prediction.issue,CandidateForecast.strategy==version))
         if existing:
             result.append(existing);continue
-        f=CandidateForecast(game=prediction.game,issue=prediction.issue,strategy=version,model=model,created_at=utc(now),cutoff_at=utc(cutoff),cutoff_issue=prediction.cutoff_issue,seed=prediction.seed,snapshot_path=prediction.snapshot_path,dataset_hash=prediction.dataset_hash,provenance={'selection':selection_metadata(WEIGHTED),'experiment':describe(model),'experiment_hash':fingerprint(model),'protocol':'prospective-e-v1','training_count':len(history),'numpy':np.__version__, 'feature_groups':list(STRATEGIES.get(model,())), 'tickets_per_draw':5})
+        provenance={'selection':selection_metadata(WEIGHTED),'protocol':'prospective-e-v1','training_count':len(history),'numpy':np.__version__, 'feature_groups':list(STRATEGIES.get(model,())), 'tickets_per_draw':5}
+        if prediction.game in GAMES:
+            provenance.update(experiment=describe(model),experiment_hash=fingerprint(model))
+        else:
+            provenance.update(experiment={'recipe':'bayesian-zone-v1','game':prediction.game},experiment_hash=version)
+        f=CandidateForecast(game=prediction.game,issue=prediction.issue,strategy=version,model=model,created_at=utc(now),cutoff_at=utc(cutoff),cutoff_issue=prediction.cutoff_issue,seed=prediction.seed,snapshot_path=prediction.snapshot_path,dataset_hash=prediction.dataset_hash,provenance=provenance)
         try:
             if len(history)<160: raise ValueError('至少需要160期训练历史')
-            trained=fit_model(prediction.game,history,model)
-            probabilities=predict_model(trained)
-            for key in ('front','back'):
-                size,count=GAMES[prediction.game][key]
-                p=np.array(probabilities[key])
-                if len(p)!=size or not np.isfinite(p).all() or (p<=0).any() or (p>=1).any() or abs(p.sum()-count)>1e-6:
-                    raise ValueError('Invalid probability vector')
+            if prediction.game in GAMES:
+                trained=fit_model(prediction.game,history,model)
+                probabilities=predict_model(trained)
+                for key in ('front','back'):
+                    size,count=GAMES[prediction.game][key]
+                    p=np.array(probabilities[key])
+                    if len(p)!=size or not np.isfinite(p).all() or (p<=0).any() or (p>=1).any() or abs(p.sum()-count)>1e-6:
+                        raise ValueError('Invalid probability vector')
+            else:
+                from .model_training import zone_probability_vectors
+                probabilities=zone_probability_vectors(prediction.game,history)
             f.probabilities=probabilities
             f.tickets=select_tickets(prediction.game,int(f.seed),protocol=WEIGHTED,probabilities=probabilities)
-            f.provenance={**f.provenance,'experiment':trained.metadata['experiment'],'experiment_hash':trained.metadata['experiment_hash'],'model_artifact':save_model(trained,ARTIFACTS/'models')}
+            if prediction.game in GAMES:
+                f.provenance={**f.provenance,'experiment':trained.metadata['experiment'],'experiment_hash':trained.metadata['experiment_hash'],'model_artifact':save_model(trained,ARTIFACTS/'models')}
         except Exception as exc:
             f.error=type(exc).__name__+': 候选模型未生成，正式预测可回退基线'
         completed=now+timedelta(seconds=time.monotonic()-started)
@@ -158,7 +172,7 @@ def status(session,game):
 
 def select_strategy(session,game,available=None):
     view=status(session,game)
-    available=set(versions().values()) if available is None else set(available)
+    available=set(candidate_versions(game).values()) if available is None else set(available)
     if session.scalar(select(Draw.id).where(Draw.game==game,Draw.conflict.is_(True)).limit(1)):
         available=set()
     selected,reason=choose(view['active'],view['candidates'],available)
