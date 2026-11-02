@@ -23,6 +23,7 @@ def test_empty_dashboard_and_secrets_not_exposed(api):
     assert result.status_code==200
     assert result.json()['games']['ssq']['latest'] is None
     assert 'SENDKEY' not in result.text and 'DATABASE_URL' not in result.text
+    assert set(result.json()['games']) == {'ssq','dlt','qlc','qxc'}
 
 def test_invalid_game_and_pagination(api):
     client,_=api

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from apscheduler.triggers.cron import CronTrigger
 from .config import RUNTIME
 from .domain import GAMES, TZ
+from .game_specs import game_spec, registered_games
 from .ingestion import coverage
 from .models import Draw, Experiment, Notification, Observation, Prediction, Run, Settlement
 
@@ -57,15 +58,22 @@ def health(db:DB):
 @app.get('/api/overview')
 def overview(db:DB):
     games={}
-    for game,definition in GAMES.items():
+    for game in registered_games():
+        definition=GAMES.get(game)
+        spec=game_spec(game,'2020100' if game=='qxc' else '2026001')
         latest=db.scalar(select(Draw).where(Draw.game==game).order_by(Draw.issue.desc()).limit(1))
         recent=list(db.scalars(select(Draw).where(Draw.game==game).order_by(Draw.issue.desc()).limit(20)))
         predictions=list(db.scalars(select(Prediction).where(Prediction.game==game).order_by(Prediction.issue.desc())))
         views=[prediction_view(db,p) for p in predictions]
         settled=[v['settlement']['summary'] for v in views if v['settlement'] and v['settlement']['summary']['pending']==0]
         last_prediction=next((v for v in views if not v['actual'] and v['draw_date'] >= datetime.now(TZ).date().isoformat() and (not latest or v['issue'] > latest.issue)),None)
-        frequency=[{'number':i,'count':sum(i in r.data['front'] for r in recent)} for i in range(1,definition['front'][0]+1)]
-        games[game]={'name':definition['name'],'latest':draw_view(latest) if latest else None,'prediction':last_prediction,'coverage':coverage(db,game),'recent':[draw_view(r) for r in recent], 'frequency':frequency,
+        if definition:
+            frequency=[{'number':i,'count':sum(i in r.data['front'] for r in recent)} for i in range(1,definition['front'][0]+1)]
+        elif game=='qlc':
+            frequency=[{'number':i,'count':sum(i in r.data['zones']['basic'] for r in recent)} for i in range(1,31)]
+        else:
+            frequency=[{'number':i,'count':sum(i==r.data['zones']['positions'][0] for r in recent)} for i in range(10)]
+        games[game]={'name':spec.name,'zones':[zone.name for zone in spec.zones],'latest':draw_view(latest) if latest else None,'prediction':last_prediction,'coverage':coverage(db,game),'recent':[draw_view(r) for r in recent], 'frequency':frequency,
             'stats':{'predictions':len(predictions),'settled_periods':len(settled),'committed_cost':len(predictions)*10,'settled_cost':sum(float(s['cost']) for s in settled),'return':sum(float(s['amount']) for s in settled),'net':sum(float(s['net']) for s in settled),'winning_tickets':sum(s['winning_tickets'] for s in settled)}}
     return {'games':games,'schedule':schedule_view(),'generated_at':datetime.now(TZ).isoformat()}
 
