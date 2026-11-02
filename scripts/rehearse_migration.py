@@ -83,7 +83,14 @@ def main():
         finally:
             db.engine=previous;target.dispose()
         assert sql(clone,'SELECT version_num FROM lottery.alembic_version').strip()==ScriptDirectory.from_config(cfg).get_current_head().encode()
-        assert signature(clone)==before,'Migration changed business rows'
+        after=signature(clone)
+        added={name:value for name,value in after.items() if name not in before}
+        changed={name:{'before':before[name],'after':after.get(name)}
+                 for name in before if before[name]!=after.get(name)}
+        if changed or any(value['count'] for value in added.values()):
+            changed.update({name:{'before':None,'after':value} for name,value in added.items() if value['count']})
+            raise AssertionError('Migration changed business rows: '+json.dumps(changed,sort_keys=True))
+        report['additive_empty_tables']=sorted(added)
         report['migration_preserved_business_rows']=True
         # Exercise detection and recovery only inside the disposable copy.
         sql(clone,"UPDATE lottery.predictions SET tickets=JSON_ARRAY()")
