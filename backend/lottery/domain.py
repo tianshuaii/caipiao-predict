@@ -28,6 +28,10 @@ def validate_ticket(game, front, back):
 
 def rule_version(game, issue):
     issue = canonical_issue(issue)
+    if game == 'qxc':
+        return 'qxc-20201011' if issue >= '2020100' else 'qxc-classic'
+    if game == 'qlc':
+        return 'qlc-current'
     if game == 'ssq':
         return 'ssq-2026014' if issue >= '2026014' else 'ssq-classic'
     return 'dlt-2026014' if issue >= '2026014' else ('dlt-2019019' if issue >= '2019019' else 'dlt-classic')
@@ -54,10 +58,16 @@ def next_target(game, last_issue, last_date, now, closures=()):
 
     Official holiday overrides are passed explicitly. Never skip an unpublished draw.
     """
+    if game not in GAMES:
+        from .game_specs import game_spec
+        spec = game_spec(game, last_issue)
+        definition = {'days': spec.days}
+    else:
+        definition = GAMES[game]
     now = now.astimezone(TZ)
     day = last_date + timedelta(days=1)
     for _ in range(60):
-        if day.weekday() in GAMES[game]['days'] and day.isoformat() not in closures:
+        if day.weekday() in definition['days'] and day.isoformat() not in closures:
             break
         day += timedelta(days=1)
     else:

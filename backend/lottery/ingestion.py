@@ -3,12 +3,14 @@ import hashlib
 import json
 from sqlalchemy import select
 from .domain import GAMES
+from .game_specs import draw_zones, validate_draw
 from .models import Draw, Observation, Run, utcnow
 
 def fingerprint(data):
     return hashlib.sha256(json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 def ingest(session, data, raw_id, source):
+    validate_draw(data['game'], data['issue'], draw_zones(data))
     digest = fingerprint(data)
     row = session.scalar(select(Draw).where(Draw.game == data['game'], Draw.issue == data['issue']))
     if row is None:
@@ -18,7 +20,7 @@ def ingest(session, data, raw_id, source):
     previous = session.scalar(select(Observation).where(Observation.draw_id == row.id, Observation.source == source, Observation.fingerprint == digest))
     if previous and row.fingerprint == digest:
         return row
-    mismatch = any(row.data[k] != data[k] for k in ['draw_date', 'front', 'back'])
+    mismatch = row.data['draw_date'] != data['draw_date'] or draw_zones(row.data) != draw_zones(data)
     conflict = mismatch and row.source != source
     last = session.scalar(select(Observation).where(Observation.draw_id == row.id, Observation.source == source).order_by(Observation.id.desc()).limit(1))
     new_conflict = conflict and (not last or not last.conflict or last.fingerprint != digest)

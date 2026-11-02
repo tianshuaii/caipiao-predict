@@ -104,3 +104,17 @@ def test_inventory_detects_deleted_year_end(session):
     report=coverage(session,'ssq')
     assert report['complete'] is False
     assert '2003002' in report['missing']
+
+
+def test_zone_payload_conflict_is_retained_without_rewriting_legacy_shape(session):
+    primary = {'game':'qlc','issue':'2026125','draw_date':'2026-10-30',
+               'zones':{'basic':[2,5,10,15,22,23,28],'special':[3]},
+               'prizes':{},'source_url':'https://example.test/primary','sales':None,'pool':None}
+    secondary = dict(primary, zones={'basic':[1,5,10,15,22,23,28],'special':[3]})
+
+    ingest(session, primary, None, 'primary')
+    ingest(session, secondary, None, 'secondary')
+
+    row = session.scalar(select(Draw))
+    assert row.data == primary
+    assert row.conflict is True
