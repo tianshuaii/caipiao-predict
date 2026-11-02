@@ -167,3 +167,21 @@ def test_distribution_reference_counts_and_empty_semantics():
     empty=analyze_features([],'ssq','back','2026002',10)
     assert all(b['frequency'] is None for bins in empty['distributions'].values() for b in bins)
     assert len(empty['distributions']['sum'])==16
+
+
+def test_qlc_basic_and_special_feature_windows_stay_separate():
+    rows=[{'issue':f'2026{i:03d}','zones':{'basic':[1,2,3,4,5,6,7],'special':[8]}} for i in range(1,12)]
+    basic=analyze_features(rows,'qlc','basic','2026011',10)
+    special=analyze_features(rows,'qlc','special','2026011',10)
+    assert basic['numbers'][0]['count']==10
+    assert special['numbers'][7]['count']==10
+    assert basic['numbers'][7]['count']==0
+
+
+def test_qxc_position_features_keep_position_order_and_transitions():
+    from lottery.feature_service import analyze_position_features
+    rows=[{'issue':f'2026{i:03d}','zones':{'positions':[i%10,1,2,3,4,5,i%15]}} for i in range(1,12)]
+    result=analyze_position_features(rows,'qxc',1,'2026011',10)
+    assert result['position']==1
+    assert result['numbers'][1]['count']==1
+    assert result['transitions']

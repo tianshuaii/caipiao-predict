@@ -6,6 +6,7 @@ import json
 import math
 import numpy as np
 from .domain import GAMES, canonical_issue, validate_ticket
+from .game_specs import game_spec, validate_draw
 from .indicators import omission_features, feature_sequence  # legacy training entrypoint, unchanged protocol
 
 VERSION='descriptive-v1'
@@ -126,20 +127,31 @@ def analyze_features(rows, game, zone, cutoff_issue, window='all'):
 
     Gap units are records, never calendar days. No inferred draws fill archive holes.
     """
-    if game not in GAMES or zone not in ('front','back') or window not in WINDOWS:
+    if window not in WINDOWS:
         raise ValueError('Invalid game, zone or window')
+    if game in GAMES:
+        if zone not in ('front','back'): raise ValueError('Invalid game, zone or window')
+        maximum,k=GAMES[game][zone]
+        value=lambda row: row[zone]
+    elif game == 'qlc' and zone in ('basic','special'):
+        spec=game_spec(game, cutoff_issue)
+        descriptor=next(item for item in spec.zones if item.name==zone)
+        maximum,k=descriptor.maximum,descriptor.count
+        value=lambda row: row['zones'][zone]
+    else: raise ValueError('Invalid game, zone or window')
     cutoff_issue=canonical_issue(cutoff_issue)
     selected=sorted((r for r in rows if canonical_issue(r['issue'])<=cutoff_issue),key=lambda r:canonical_issue(r['issue']))
     if len({canonical_issue(r['issue']) for r in selected})!=len(selected):
         raise ValueError('Duplicate issue')
     for row in selected:
         if row.get('conflict'): raise ValueError('Unresolved source conflict')
-        validate_ticket(game,row['front'],row['back'])
+        if game in GAMES: validate_ticket(game,row['front'],row['back'])
+        else: validate_draw(game,row['issue'],row['zones'])
     available=len(selected)
     if window!='all': selected=selected[-window:]
-    maximum,k=GAMES[game][zone];n=len(selected)
+    n=len(selected)
     matrix=np.zeros((n,maximum))
-    for i,row in enumerate(selected): matrix[i,np.array(row[zone])-1]=1
+    for i,row in enumerate(selected): matrix[i,np.array(value(row))-1]=1
     omissions=omission_features(matrix);counts=matrix.sum(axis=0).astype(int)
     numbers=[];p=k/maximum
     for j,c in enumerate(counts):
@@ -154,9 +166,9 @@ def analyze_features(rows, game, zone, cutoff_issue, window='all'):
             'frequency_z':float((c-n*p)/math.sqrt(n*p*(1-p))) if n else None})
     combos=[];joint=Counter();singles=Counter()
     for i,row in enumerate(selected):
-        chosen=sorted(row[zone]);singles.update(chosen)
+        chosen=sorted(value(row));singles.update(chosen)
         for size in (2,3): joint.update(combinations(chosen,size))
-        combos.append({'issue':row['issue'],'features':combination_features(chosen,maximum,selected[i-1][zone] if i else None)})
+        combos.append({'issue':row['issue'],'features':combination_features(chosen,maximum,value(selected[i-1]) if i else None)})
     cooccurrence=[]
     for chosen,count in sorted(joint.items(),key=lambda item:(len(item[0]),item[0])):
         given_sets=[(v,) for v in chosen] if len(chosen)==2 else [tuple(v for v in chosen if v!=excluded) for excluded in chosen]
@@ -178,7 +190,7 @@ def analyze_features(rows, game, zone, cutoff_issue, window='all'):
                           'theoretical_probability':float(probability)}
                          for value,probability in enumerate(pmf) if probability>0]
                    for name,pmf in theoretical.items()}
-    digest=hashlib.sha256(json.dumps([{'issue':canonical_issue(r['issue']),'numbers':sorted(r[zone])} for r in selected],sort_keys=True).encode()).hexdigest()
+    digest=hashlib.sha256(json.dumps([{'issue':canonical_issue(r['issue']),'numbers':sorted(value(r))} for r in selected],sort_keys=True).encode()).hexdigest()
     return {'version':VERSION,'game':game,'zone':zone,'cutoff_issue':cutoff_issue,'window':window,
             'sample_size':n,'available_records':available,'short_window':window!='all' and n<window,
             'first_issue':selected[0]['issue'] if n else None,'last_issue':selected[-1]['issue'] if n else None,
@@ -187,3 +199,25 @@ def analyze_features(rows, game, zone, cutoff_issue, window='all'):
             'notes':['窗口按保留记录计数，不能证明官方连续全量覆盖；遗漏单位为记录。',
                      '完成间隔排除窗口首尾未完成区间；未出现号码的当前遗漏为窗口内下界。',
                      '共现仅列非零组合；同期开奖条件频率不是下期概率，少样本中的0或1不代表确定性。']}
+
+
+def analyze_position_features(rows, game, position, cutoff_issue, window='all'):
+    if game != 'qxc' or not 1 <= position <= 7 or window not in WINDOWS:
+        raise ValueError('Invalid game, position or window')
+    cutoff_issue=canonical_issue(cutoff_issue)
+    selected=sorted((row for row in rows if canonical_issue(row['issue']) <= cutoff_issue),key=lambda row:canonical_issue(row['issue']))
+    for row in selected:
+        if row.get('conflict'): raise ValueError('Unresolved source conflict')
+        validate_draw(game,row['issue'],row['zones'])
+    if window != 'all': selected=selected[-window:]
+    maximum=15 if position == 7 else 10
+    values=[row['zones']['positions'][position-1] for row in selected]
+    counts=Counter(values); n=len(values)
+    omissions=[next((offset for offset,value in enumerate(reversed(values)) if value == number),n) for number in range(maximum)]
+    transitions=Counter(zip(values,values[1:]))
+    return {'version':VERSION,'game':game,'position':position,'cutoff_issue':cutoff_issue,'window':window,
+            'sample_size':n,'numbers':[{'number':number,'count':counts[number],'frequency':counts[number]/n if n else None,
+                                         'current_omission':omissions[number],'route_012':number % 3}
+                                        for number in range(maximum)],
+            'transitions':[{'from':before,'to':after,'count':count} for (before,after),count in sorted(transitions.items())],
+            'notes':['位置特征仅描述保留历史；位置转移不代表未来优势。']}
