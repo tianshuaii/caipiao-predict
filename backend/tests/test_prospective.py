@@ -20,7 +20,7 @@ def session(tmp_path, monkeypatch):
 
 def test_gate_requires_samples_and_sequential_evidence():
     positive=[{'baseline':.2,'brier':.1,'normalized_gain':.8}]*100
-    assert not evidence(positive[:59],40)['eligible']
+    assert not evidence(positive[:39],40)['eligible']
     assert evidence(positive,40)['eligible']
     weak=[{'baseline':.2,'brier':.199,'normalized_gain':.01}]*100
     assert not evidence(weak,40)['eligible']

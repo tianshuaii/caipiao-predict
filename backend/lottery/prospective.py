@@ -19,7 +19,8 @@ from .predict import generate_tickets
 from .settlement import settle_ticket
 from .indicators import STRATEGIES
 
-MIN_SAMPLES=60
+MIN_SAMPLES=40
+RECENT_SAMPLES=20
 UNIFORM='uniform-v1'
 LAMBDAS=(.01,.03,.1,.3)
 
@@ -142,9 +143,9 @@ def evidence(metrics,threshold):
     top=max(logs)
     log_e=top+math.log(sum(math.exp(v-top) for v in logs)/len(logs))
     loss=float(np.mean([m['brier'] for m in metrics]));base=float(np.mean([m['baseline'] for m in metrics]))
-    recent=metrics[-30:]; rb=float(np.mean([m['baseline'] for m in recent]));rl=float(np.mean([m['brier'] for m in recent]))
+    recent=metrics[-RECENT_SAMPLES:]; rb=float(np.mean([m['baseline'] for m in recent]));rl=float(np.mean([m['brier'] for m in recent]))
     improvement=(base-loss)/base if base else 0.0
-    return {'samples':n,'brier':loss,'baseline':base,'relative_gain':improvement,'e_value':math.exp(min(log_e,690)),'threshold':threshold,'eligible':n>=MIN_SAMPLES and improvement>=.01 and rl<rb and log_e>=math.log(threshold),'recent_degraded':len(recent)==30 and rl>rb*1.01}
+    return {'samples':n,'brier':loss,'baseline':base,'relative_gain':improvement,'e_value':math.exp(min(log_e,690)),'threshold':threshold,'eligible':n>=MIN_SAMPLES and improvement>=.01 and rl<rb and log_e>=math.log(threshold),'recent_degraded':len(recent)==RECENT_SAMPLES and rl>rb*1.01}
 
 def choose(active,candidates,available):
     eligible=sorted([c for c in candidates if c['eligible'] and c['strategy'] in available],key=lambda c:c['brier'])
