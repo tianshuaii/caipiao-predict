@@ -21,6 +21,11 @@ def features(matrix, stop):
     return np.stack([matrix[max(0,stop-30):stop].mean(axis=0), matrix[max(0,stop-100):stop].mean(axis=0), matrix[stop-1]], axis=1)
 
 def probability_vectors(game, history, strategy):
+    if game in ('qlc', 'qxc'):
+        from .model_training import zone_probability_vectors
+        if strategy not in ('uniform', 'bayesian'):
+            raise ValueError('Unsupported new-game research recipe')
+        return zone_probability_vectors(game,history,strategy)
     from .model_training import fit_model, predict_model
     return predict_model(fit_model(game,history,strategy))
 

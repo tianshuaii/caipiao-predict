@@ -16,3 +16,9 @@ def test_qxc_research_refuses_mixed_rule_versions():
           {'issue':'2020100','zones':{'positions':[1,1,1,1,1,1,14]},'rule_version':'qxc-20201011'}]
     with pytest.raises(ValueError, match='rule version'):
         zone_probability_vectors('qxc',rows)
+
+
+def test_experiment_entrypoint_uses_zone_aware_recipe_for_new_games():
+    from lottery.experiments import probability_vectors
+    rows=[{'issue':'2026125','zones':{'basic':[1,2,3,4,5,6,7],'special':[8]}}]
+    assert set(probability_vectors('qlc',rows,'bayesian')) == {'basic','special'}
