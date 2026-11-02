@@ -142,3 +142,13 @@ def test_evaluate_only_never_creates_formal_predictions(session):
     ingest(session,draw(),None,'cwl')
     evaluate_existing(session,'ssq')
     assert session.scalar(select(func.count()).select_from(Prediction))==0
+
+
+def test_new_game_brier_vectors_keep_qlc_zones_and_qxc_positions_separate():
+    from lottery.prospective import brier_vectors
+    predicted,actual,baseline=brier_vectors('qlc',{'basic':[7/30]*30,'special':[1/30]*30},
+                                             {'zones':{'basic':[1,2,3,4,5,6,7],'special':[8]}})
+    assert len(predicted)==len(actual)==len(baseline)==60
+    predicted,actual,baseline=brier_vectors('qxc',{'positions':[[.1]*10 for _ in range(6)]+[[1/15]*15]},
+                                             {'zones':{'positions':[2,9,4,5,6,3,2]}})
+    assert len(predicted)==len(actual)==len(baseline)==75

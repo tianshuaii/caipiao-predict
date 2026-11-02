@@ -31,6 +31,26 @@ def versions():
 def utc(value):
     return value.astimezone(timezone.utc).replace(tzinfo=None)
 
+
+def brier_vectors(game, probabilities, draw):
+    if game in GAMES:
+        predicted=np.array(probabilities['front']+probabilities['back'])
+        baseline=np.concatenate([np.full(GAMES[game][key][0],GAMES[game][key][1]/GAMES[game][key][0]) for key in ('front','back')])
+        actual=np.concatenate([np.array([int(number in draw[key]) for number in range(1,GAMES[game][key][0]+1)]) for key in ('front','back')])
+        return predicted,actual,baseline
+    if game == 'qlc':
+        zones=draw['zones']
+        predicted=np.array(probabilities['basic']+probabilities['special'])
+        actual=np.array([int(number in zones['basic']) for number in range(1,31)]+[int(number in zones['special']) for number in range(1,31)])
+        return predicted,actual,np.array([7/30]*30+[1/30]*30)
+    if game == 'qxc':
+        values=draw['zones']['positions'];vectors=probabilities['positions']
+        predicted=np.array([value for vector in vectors for value in vector])
+        actual=np.array([int(number == value) for index,value in enumerate(values) for number in range(15 if index == 6 else 10)])
+        baseline=np.array([value for index in range(7) for value in [1/(15 if index == 6 else 10)]*(15 if index == 6 else 10)])
+        return predicted,actual,baseline
+    raise ValueError('Unknown game')
+
 def freeze_candidates(session, prediction, now=None):
     from .workflow import ARTIFACTS
     from .selection import select_tickets, selection_metadata, WEIGHTED
@@ -81,9 +101,7 @@ def score_candidates(session,game):
         draw=session.scalar(select(Draw).where(Draw.game==game,Draw.issue==f.issue,Draw.conflict.is_(False)))
         if not draw or f.created_at>=f.cutoff_at or f.cutoff_issue>=f.issue: continue
         if session.scalar(select(CandidateScore.id).where(CandidateScore.forecast_id==f.id,CandidateScore.draw_fingerprint==draw.fingerprint)): continue
-        p=np.array(f.probabilities['front']+f.probabilities['back'])
-        baseline=np.concatenate([np.full(GAMES[game][k][0],GAMES[game][k][1]/GAMES[game][k][0]) for k in ('front','back')])
-        actual=np.concatenate([np.array([int(n in draw.data[k]) for n in range(1,GAMES[game][k][0]+1)]) for k in ('front','back')])
+        p,actual,baseline=brier_vectors(game,f.probabilities,draw.data)
         loss=float(np.mean((p-actual)**2)); base=float(np.mean((baseline-actual)**2))
         bound=float(np.mean(np.abs(baseline-p)*np.maximum(np.abs(baseline+p),np.abs(baseline+p-2))))
         normalized=(base-loss)/bound if bound>1e-15 else 0.0
