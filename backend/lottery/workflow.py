@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlalchemy import select
 from .config import RUNTIME
 from .domain import GAMES, TZ, next_target
+from .game_specs import registered_games
 from .ingestion import fingerprint, coverage
 from .models import CalendarOverride, Draw, Prediction, Run, Settlement, utcnow
 from .predict import STRATEGY
@@ -18,6 +19,14 @@ from .selection import select_tickets, selection_metadata, UNIFORM
 from .settlement import settle_ticket
 
 ARTIFACTS = RUNTIME / 'artifacts'
+
+
+def uniform_probabilities(game):
+    if game in GAMES:
+        return {key: [GAMES[game][key][1] / GAMES[game][key][0]] * GAMES[game][key][0] for key in ['front','back']}
+    if game == 'qlc': return {'basic':[7/30]*30,'special':[1/30]*30}
+    if game == 'qxc': return {'positions':[[.1]*10 for _ in range(6)]+[[1/15]*15]}
+    raise ValueError('Unknown game')
 
 @contextmanager
 def workflow_lock():
@@ -63,7 +72,7 @@ def persist_prediction(session, game, now=None):
     seed = random.SystemRandom().randrange(2**63)
     p = Prediction(game=game, issue=issue, draw_date=day, cutoff_issue=latest.issue, strategy=STRATEGY,
         seed=str(seed), tickets=select_tickets(game, seed), dataset_hash=digest, snapshot_path=filename,
-        probabilities={k: [GAMES[game][k][1] / GAMES[game][k][0]] * GAMES[game][k][0] for k in ['front','back']},
+        probabilities=uniform_probabilities(game),
         provenance={'selection':selection_metadata(UNIFORM),'code_sha256': hashlib.sha256(code).hexdigest(), 'python': platform.python_version(), 'strategy_version': STRATEGY, 'count': 5, 'cost': '10', 'calendar': 'regular-weekdays-with-official-overrides', 'sales_cutoff': deadline.isoformat(), 'coverage': coverage(session,game), 'rationale': '候选策略尚无可靠样本外优势，采用均匀随机基线；号码概率不因历史遗漏改变。'})
     session.add(p)
     session.flush()
@@ -108,7 +117,7 @@ def run_workflow(notify=False, now=None, kind="nightly"):
         session.add(run)
         session.commit()
         details = {}
-        for game in GAMES:
+        for game in registered_games():
             try:
                 sync = collect(session, game, full=False)
                 settled = settle(session)
@@ -146,11 +155,16 @@ def data_pending(session,game,now):
     load_calendar(session,day.year)
     closed=set(session.scalars(select(CalendarOverride.day).where(CalendarOverride.game==game,CalendarOverride.closed.is_(True))))
     for _ in range(60):
-        if day.weekday() in GAMES[game]['days'] and day not in closed: break
+        if game in GAMES:
+            days=GAMES[game]['days']
+        else:
+            from .game_specs import game_spec
+            days=game_spec(game, '2020100' if game == 'qxc' else '2026001').days
+        if day.weekday() in days and day not in closed: break
         day-=timedelta(days=1)
     row=session.scalar(select(Draw).where(Draw.game==game).order_by(Draw.issue.desc()).limit(1))
     if not row or row.conflict or row.draw_date<day: return True
     prizes=row.data.get('prizes',{})
     version=row.data['rule_version']
-    levels=6 if game=='ssq' or version=='dlt-classic' else (9 if version=='dlt-2019019' else 7)
+    levels=7 if game=='qlc' else 6 if game=='qxc' or game=='ssq' or version=='dlt-classic' else (9 if version=='dlt-2019019' else 7)
     return any(str(i) not in prizes for i in range(1,levels+1)) or any(p.get('amount') is None or p.get('count') is None for p in prizes.values())
