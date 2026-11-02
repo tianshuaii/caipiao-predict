@@ -53,6 +53,64 @@ def parse_cwl(row):
     result['promotion'] = row.get('prizeSpecialInfo', '')
     return result
 
+
+def _raw_draw(game, issue, day, zones, prizes, url, sales=None, pool=None):
+    canonical = canonical_issue(issue)
+    date.fromisoformat(day)
+    return {'game': game, 'issue': canonical, 'draw_date': day, 'zones': zones,
+            'prizes': prizes, 'source_url': url, 'sales': number(sales),
+            'pool': number(pool)}
+
+
+def parse_qlc_primary(row):
+    basic = [int(value) for value in str(row.get('red', '')).split(',') if value]
+    special = [int(value) for value in str(row.get('blue', '')).split(',') if value]
+    if len(basic) != 7 or len(set(basic)) != 7 or any(value < 1 or value > 30 for value in basic):
+        raise ValueError('Invalid qlc basic numbers')
+    if len(special) != 1 or not 1 <= special[0] <= 30:
+        raise ValueError('Invalid qlc special number')
+    prizes = {str(entry['type']): award(entry.get('typemoney'), entry.get('typenum'))
+              for entry in row.get('prizegrades', [])}
+    return _raw_draw('qlc', row['code'], str(row['date'])[:10],
+                     {'basic': sorted(basic), 'special': special}, prizes,
+                     'https://www.cwl.gov.cn' + row.get('detailsLink', ''),
+                     row.get('sales'), row.get('poolmoney'))
+
+
+def parse_qlc_secondary(row):
+    tokens = re.split(r'[\s,]+', row['numbers'].strip())
+    if len(tokens) != 8 or any(not token.isdigit() for token in tokens):
+        raise ValueError('Invalid qlc basic numbers')
+    values = [int(value) for value in tokens]
+    if len(values) != 8:
+        raise ValueError('Invalid qlc secondary numbers')
+    if len(set(values[:7])) != 7 or any(value < 1 or value > 30 for value in values):
+        raise ValueError('Invalid qlc basic numbers')
+    return _raw_draw('qlc', row['issue'], str(row['draw_date'])[:10],
+                     {'basic': sorted(values[:7]), 'special': values[7:]}, {}, row['source_url'])
+
+
+def parse_qxc_primary(row):
+    positions = [int(value) for value in str(row.get('lotteryDrawResult', '')).split()]
+    if len(positions) != 7:
+        raise ValueError('七星彩 requires seven ordered digits')
+    if any(value < 0 or value > 9 for value in positions[:6]) or not 0 <= positions[6] <= 14:
+        raise ValueError('Invalid qxc position value')
+    prizes = {str(CHINESE[entry['prizeLevel'][0]]): award(entry.get('stakeAmount'), entry.get('stakeCount'))
+              for entry in row.get('prizeLevelList', []) if entry.get('prizeLevel', '')[:1] in CHINESE}
+    return _raw_draw('qxc', row['lotteryDrawNum'], str(row['lotteryDrawTime'])[:10],
+                     {'positions': positions}, prizes, row.get('drawPdfUrl') or DLT_URL,
+                     row.get('totalSaleAmount'), row.get('poolBalanceAfterdraw'))
+
+
+def parse_qxc_secondary(row):
+    positions = [int(value) for value in re.findall(r'\d+', row['numbers'])]
+    if len(positions) != 7:
+        raise ValueError('七星彩 requires seven ordered digits')
+    return _raw_draw('qxc', row['issue'], str(row['draw_date'])[:10],
+                     {'positions': positions}, {}, row['source_url'])
+
+
 def parse_shanghai(text):
     if text.lstrip().startswith('{'):
         payload = json.loads(text)
