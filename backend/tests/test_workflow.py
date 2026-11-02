@@ -34,7 +34,7 @@ def test_calendar_closure_and_year_boundary():
 
 def test_new_game_calendar_uses_reviewed_weekdays_and_closure():
     now = datetime(2026,10,30,8,tzinfo=TZ)
-    assert next_target('qlc','2026125',date(2026,10,30),now)[:2] == ('2026126',date(2026,11,1))
+    assert next_target('qlc','2026125',date(2026,10,30),now)[:2] == ('2026126',date(2026,11,2))
     assert next_target('qxc','2026125',date(2026,11,1),datetime(2026,11,2,8,tzinfo=TZ))[:2] == ('2026126',date(2026,11,3))
 
 def test_prediction_is_immutable_across_retries(session):

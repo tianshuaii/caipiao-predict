@@ -30,7 +30,7 @@ _SPECS = {
                     (ZoneSpec('front', 6, 1, 33), ZoneSpec('back', 1, 1, 16))),
     'dlt': GameSpec('dlt', '超级大乐透', '2007001', (0, 2, 5), 'dlt-current',
                     (ZoneSpec('front', 5, 1, 35), ZoneSpec('back', 2, 1, 12))),
-    'qlc': GameSpec('qlc', '七乐彩', '2005001', (1, 3, 6), 'qlc-current',
+    'qlc': GameSpec('qlc', '七乐彩', '2005001', (0, 2, 4), 'qlc-current',
                     (ZoneSpec('basic', 7, 1, 30), ZoneSpec('special', 1, 1, 30))),
     'qxc-classic': GameSpec('qxc', '七星彩', '2004001', (1, 4, 6), 'qxc-classic',
                             (ZoneSpec('positions', 7, 0, 9, ordered=True, distinct=False),)),
