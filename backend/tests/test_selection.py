@@ -136,3 +136,21 @@ def test_backtest_forecasts_replay_using_recorded_protocol():
         protocol=forecast['selection']['protocol']
         assert protocol==(UNIFORM if name=='uniform' else WEIGHTED)
         assert replay_tickets('ssq',forecast['seed'],forecast['probabilities'],protocol)==forecast['tickets']
+
+
+@pytest.mark.parametrize('game', ['qlc', 'qxc'])
+def test_new_game_uniform_batches_are_deterministic_and_unique(game):
+    tickets = select_tickets(game, 42)
+    assert tickets == select_tickets(game, 42)
+    assert len(tickets) == len({str(ticket) for ticket in tickets}) == 5
+    if game == 'qlc':
+        assert all(len(ticket['basic']) == 7 and ticket['special'][0] not in ticket['basic'] for ticket in tickets)
+    else:
+        assert all(len(ticket['positions']) == 7 for ticket in tickets)
+
+
+def test_new_game_weighted_batches_respect_zone_shapes():
+    qlc = {'basic':[1.] * 30, 'special':[1.] * 30}
+    qxc = {'positions':[[1.] * 10 for _ in range(6)] + [[1.] * 15]}
+    assert select_tickets('qlc', 42, protocol=WEIGHTED, probabilities=qlc) == select_tickets('qlc', 42, protocol=WEIGHTED, probabilities=qlc)
+    assert select_tickets('qxc', 42, protocol=WEIGHTED, probabilities=qxc) == select_tickets('qxc', 42, protocol=WEIGHTED, probabilities=qxc)

@@ -3,6 +3,7 @@ import math
 import random
 import numpy as np
 from .domain import GAMES, validate_ticket
+from .game_specs import validate_ticket_data
 
 def generate_tickets(game, seed, count=5):
     if not 1 <= count <= 10:
@@ -47,13 +48,36 @@ def selection_metadata(protocol):
 
 
 def _validated(game, seed, count, protocol, probabilities):
-    if game not in GAMES: raise ValueError('Unknown game')
+    if game not in {*GAMES, 'qlc', 'qxc'}: raise ValueError('Unknown game')
     if type(seed) is not int or seed<0: raise ValueError('Seed must be a nonnegative integer')
     if type(count) is not int or not 1<=count<=10: raise ValueError('Count must be between 1 and 10')
     selection_metadata(protocol)
     if protocol==UNIFORM:
         if probabilities is not None: raise ValueError('Uniform protocol takes no probabilities')
         return None
+    if game not in GAMES:
+        if protocol != WEIGHTED or not isinstance(probabilities, dict):
+            raise ValueError('New-game selection requires weighted zone probabilities')
+        keys = ('basic', 'special') if game == 'qlc' else ('positions',)
+        if set(probabilities) != set(keys):
+            raise ValueError('Wrong probability zones')
+        if game == 'qlc':
+            vectors = {key: np.asarray(probabilities[key], dtype=float) for key in keys}
+            shapes = {'basic': (30,), 'special': (30,)}
+        else:
+            positions = probabilities['positions']
+            if not isinstance(positions, list) or len(positions) != 7:
+                raise ValueError('Seven position vectors required')
+            vectors = {'positions': [np.asarray(values, dtype=float) for values in positions]}
+            shapes = {'positions': [(10,)] * 6 + [(15,)]}
+        values = vectors['positions'] if game == 'qxc' else vectors.values()
+        expected = shapes['positions'] if game == 'qxc' else shapes.values()
+        for vector, shape in zip(values, expected):
+            if vector.shape != shape or not np.isfinite(vector).all() or (vector < 0).any() or vector.sum() <= 0:
+                raise ValueError('Invalid probability vector')
+        if game == 'qlc' and np.count_nonzero(vectors['basic']) < 7:
+            raise ValueError('Insufficient support')
+        return vectors
     if not isinstance(probabilities,dict) or set(probabilities)!= {'front','back'}:
         raise ValueError('Both probability zones required')
     vectors={};support=1
@@ -83,18 +107,37 @@ def select_tickets(game, seed, count=5, *, protocol=UNIFORM, probabilities=None)
     result=[];seen=set()
     for _ in range(1 if protocol==EXACT else MAX_ATTEMPTS):
         ticket={}
-        for zone in ('front','back'):
-            maximum,k=GAMES[game][zone]
-            if protocol==UNIFORM:
-                values=sorted(rng.sample(range(1,maximum+1),k))
-            elif protocol==WEIGHTED:
-                values=sorted(int(v) for v in rng.choice(np.arange(1,maximum+1),size=k,replace=False,p=vectors[zone]))
+        if game == 'qlc':
+            if protocol == UNIFORM:
+                ticket['basic']=sorted(rng.sample(range(1,31),7))
+                ticket['special']=[rng.choice([value for value in range(1,31) if value not in ticket['basic']])]
             else:
-                cumulative=np.cumsum(vectors[zone]);cumulative[-1]=float(k)
-                values=(np.searchsorted(cumulative,rng.random()+np.arange(k),side='right')+1).tolist()
-            ticket[zone]=values
-        validate_ticket(game,**ticket)
-        signature=tuple(ticket['front']+ticket['back'])
+                basic = rng.choice(np.arange(1,31), size=7, replace=False, p=vectors['basic'] / vectors['basic'].sum())
+                ticket['basic']=sorted(int(value) for value in basic)
+                special = vectors['special'].copy()
+                special[np.array(ticket['basic']) - 1] = 0
+                if special.sum() <= 0: raise ValueError('Insufficient special support')
+                ticket['special']=[int(rng.choice(np.arange(1,31), p=special / special.sum()))]
+        elif game == 'qxc':
+            if protocol == UNIFORM:
+                ticket['positions']=[rng.randrange(10) for _ in range(6)]+[rng.randrange(15)]
+            else:
+                ticket['positions']=[int(rng.choice(np.arange(len(values)), p=values / values.sum()))
+                                     for values in vectors['positions']]
+        else:
+            for zone in ('front','back'):
+                maximum,k=GAMES[game][zone]
+                if protocol==UNIFORM:
+                    values=sorted(rng.sample(range(1,maximum+1),k))
+                elif protocol==WEIGHTED:
+                    values=sorted(int(v) for v in rng.choice(np.arange(1,maximum+1),size=k,replace=False,p=vectors[zone]))
+                else:
+                    cumulative=np.cumsum(vectors[zone]);cumulative[-1]=float(k)
+                    values=(np.searchsorted(cumulative,rng.random()+np.arange(k),side='right')+1).tolist()
+                ticket[zone]=values
+        if game in GAMES: validate_ticket(game,**ticket)
+        else: validate_ticket_data(game, '2026125', ticket)
+        signature=str(ticket)
         if signature not in seen:
             seen.add(signature);result.append(ticket)
         if len(result)==count:return result
