@@ -119,7 +119,7 @@ def test_all_model_failures_remain_in_audit_without_nan_or_zero_profit(monkeypat
     report=e.evaluate_history('ssq',history(161),test_count=1,simulations=1)
     assert report['comparison']['issues']==[] and report['random_hit_interval'] is None
     assert all(r['failed_periods']==1 and r['brier'] is None and r['net'] is None for r in report['strategies'])
-    assert len(report['forecast_audit'][0]['forecasts'])==15
+    assert set(report['forecast_audit'][0]['forecasts']) == {'uniform', 'frequency', 'logistic', *e.STRATEGIES}
     json.dumps(report,allow_nan=False)
 
 

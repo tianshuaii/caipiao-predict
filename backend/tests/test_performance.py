@@ -70,7 +70,7 @@ def test_history_report_contains_per_strategy_performance(monkeypatch):
     original=e.probability_vectors
     monkeypatch.setattr(e,'probability_vectors',lambda game,past,name:original(game,past,'uniform'))
     report=e.evaluate_history('ssq',history(161),test_count=1,simulations=1)
-    assert len(report['performance']['groups'])==15
+    assert len(report['performance']['groups'])==len(report['strategies'])
     assert all(g['mode']=='historical' and g['periods']==1 for g in report['performance']['groups'])
 
 

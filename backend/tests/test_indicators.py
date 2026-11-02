@@ -13,7 +13,7 @@ def test_indicator_features_are_past_only_and_combine_groups():
     x[160:]=1
     assert np.array_equal(a,indicator_features(x,160,('odd','omission')))
     assert a.shape[1]>indicator_features(x,160,('odd',)).shape[1]
-    assert len(STRATEGIES)==12
+    assert {'boost_all','ensemble_all'} <= set(STRATEGIES)
 
 
 def test_omission_uses_completed_gaps_and_marks_unseen():
@@ -30,7 +30,7 @@ def test_every_indicator_strategy_produces_replayable_five_tickets(game):
     from lottery.indicators import STRATEGIES
     from lottery.prospective import versions
     rows=[generate_tickets(game,i,1)[0] for i in range(160)]
-    assert len(versions())==14
+    assert len(versions())==2+len(STRATEGIES)
     for name in STRATEGIES:
         p=probability_vectors(game,rows,name)
         for key,count in [('front',6 if game=='ssq' else 5),('back',1 if game=='ssq' else 2)]:

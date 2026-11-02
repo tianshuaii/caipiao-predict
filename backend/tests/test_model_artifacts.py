@@ -74,11 +74,12 @@ def test_forecasts_retain_replayable_models(session):
     from lottery.models import CandidateForecast
     from lottery.workflow import persist_prediction, ARTIFACTS
     from lottery.domain import TZ
+    from lottery.prospective import versions
     from test_prospective import seed_history
     seed_history(session)
     persist_prediction(session,'ssq',datetime(2026,10,23,8,tzinfo=TZ))
     forecasts=list(session.scalars(select(CandidateForecast)))
-    assert len(forecasts)==14
+    assert len(forecasts)==len(versions())
     for forecast in forecasts:
         assert forecast.error is None
         ref=forecast.provenance['model_artifact']

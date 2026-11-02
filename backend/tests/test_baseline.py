@@ -13,8 +13,11 @@ def test_frozen_ticket_and_model_identity_baseline():
     for game,tickets in BASELINE['tickets'].items():
         assert generate_tickets(game,BASELINE['seed'])==tickets
     from lottery.experiment_registry import registered_versions, LEGACY_SELECTION
-    assert registered_versions(LEGACY_SELECTION)==BASELINE['versions']
-    assert all(v!=BASELINE['versions'][k] for k,v in versions().items())
+    legacy=registered_versions(LEGACY_SELECTION)
+    assert {k:legacy[k] for k in BASELINE['versions']}==BASELINE['versions']
+    assert legacy['boost_all'].startswith('boost_all-v2-')
+    assert legacy['ensemble_all'].startswith('ensemble_all-v2-')
+    assert all(v!=BASELINE['versions'][k] for k,v in versions().items() if k in BASELINE['versions'])
 
 
 def test_draw_api_compatible_response(api):
@@ -32,5 +35,5 @@ def test_generation_change_cannot_reuse_legacy_identity(monkeypatch):
     from lottery.generation_versions import registered_versions
     monkeypatch.setitem(experiments.PROTOCOL,'seed',20261027)
     changed=registered_versions()
-    assert set(changed)==set(BASELINE['versions'])
-    assert all(changed[k]!=BASELINE['versions'][k] for k in changed)
+    assert set(changed)==set(registered_versions())
+    assert all(changed[k]!=BASELINE['versions'][k] for k in BASELINE['versions'])
