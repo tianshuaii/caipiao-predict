@@ -103,3 +103,9 @@ def test_morning_reads_saved_predictions_without_fetch_or_regeneration(db,monkey
     # A later morning without fresh results must not send these stale numbers.
     send_morning_report(datetime(2026,10,26,8,tzinfo=TZ))
     assert '5 注单式' not in delivered[-1]
+
+
+def test_report_formats_nested_qlc_and_qxc_draw_zones():
+    from lottery.reporting import balls
+    assert balls({'zones':{'basic':[1,2,3,4,5,6,7],'special':[8]}})=='01 02 03 04 05 06 07 + 特别 08'
+    assert balls({'zones':{'positions':[2,9,4,5,6,3,12]}})=='2 9 4 5 6 3 + 12'

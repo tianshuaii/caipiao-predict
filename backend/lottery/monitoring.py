@@ -8,8 +8,9 @@ from .config import RUNTIME
 
 LABELS={'database':'数据库连接','disk':'磁盘余量','scheduler':'调度心跳','nightly':'夜间任务',
         'research':'研究任务','candidates':'候选模型','history_dlt':'大乐透历史完整性',
-        'history_ssq':'双色球历史完整性','sources':'开奖来源','latest':'最新开奖数据'}
-DB_KEYS=('nightly','research','candidates','history_dlt','history_ssq','sources','latest')
+        'history_ssq':'双色球历史完整性','history_qlc':'七乐彩历史完整性',
+        'history_qxc':'七星彩历史完整性','sources':'开奖来源','latest':'最新开奖数据'}
+DB_KEYS=('nightly','research','candidates','history_dlt','history_ssq','history_qlc','history_qxc','sources','latest')
 
 
 def transition(state,checks,stamp):
@@ -47,9 +48,10 @@ def database_checks(session,now):
         age=now-(job.started_at or job.created_at)
         if job.status=='failed' or job.status in ('queued','running') and age>timedelta(hours=1):checks['research']=False
     forecasts=list(session.scalars(select(CandidateForecast).options(load_only(CandidateForecast.id,CandidateForecast.game,CandidateForecast.issue,CandidateForecast.strategy,CandidateForecast.error)).order_by(CandidateForecast.id.desc())))
-    latest={game:max((f.issue for f in forecasts if f.game==game),default=None) for game in ('dlt','ssq')}
+    from .game_specs import registered_games
+    latest={game:max((f.issue for f in forecasts if f.game==game),default=None) for game in registered_games()}
     checks['candidates']=not any(f.error for f in forecasts if f.issue==latest[f.game])
-    for game in ('dlt','ssq'):checks['history_'+game]=coverage(session,game)['complete']
+    for game in registered_games():checks['history_'+game]=coverage(session,game)['complete']
     return checks
 
 

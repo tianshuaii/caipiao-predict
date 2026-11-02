@@ -6,6 +6,7 @@ from .game_specs import game_spec, registered_games
 from .models import Draw, Prediction, Settlement
 
 def balls(ticket):
+    ticket={**ticket,**ticket.get('zones',{})}
     if 'basic' in ticket:
         return ' '.join(f'{n:02d}' for n in ticket['basic']) + ' + 特别 ' + f'{ticket["special"][0]:02d}'
     if 'positions' in ticket:

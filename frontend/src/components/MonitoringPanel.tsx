@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { get } from '../api';
 type State={monitor_fresh:boolean;checked_at:string|null;checks:Record<string,{healthy:boolean|null;observed:boolean|null}>;events:{id:number;label:string;kind:string;at:string;delivery:string}[]};
-const names:Record<string,string>={database:'数据库',disk:'磁盘',scheduler:'调度心跳',nightly:'夜间任务',research:'研究任务',candidates:'候选模型',history_dlt:'大乐透完整性',history_ssq:'双色球完整性',sources:'开奖来源',latest:'最新开奖'};
+const names:Record<string,string>={database:'数据库',disk:'磁盘',scheduler:'调度心跳',nightly:'夜间任务',research:'研究任务',candidates:'候选模型',history_dlt:'大乐透完整性',history_ssq:'双色球完整性',history_qlc:'七乐彩完整性',history_qxc:'七星彩完整性',sources:'开奖来源',latest:'最新开奖'};
 export function MonitoringPanel(){
   const [state,setState]=useState<State|null>(null);const [error,setError]=useState('');
   useEffect(()=>{const controller=new AbortController();let active=true;
