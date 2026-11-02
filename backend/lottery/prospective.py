@@ -55,6 +55,11 @@ def brier_vectors(game, probabilities, draw):
         return predicted,actual,baseline
     raise ValueError('Unknown game')
 
+
+def result_hits(game, result):
+    if game == 'qlc': return result['basic_hits'] + result['special_hits']
+    return result['position_hits'] if game == 'qxc' else result['front_hits'] + result['back_hits']
+
 def freeze_candidates(session, prediction, now=None):
     from .workflow import ARTIFACTS
     from .selection import select_tickets, selection_metadata, WEIGHTED
@@ -126,7 +131,7 @@ def score_candidates(session,game):
             if amount is None: pending+=1
             else: total+=Decimal(amount)
             results.append(result)
-        session.add(CandidateScore(forecast_id=f.id,draw_fingerprint=draw.fingerprint,metrics={'brier':loss,'baseline':base,'normalized_gain':float(np.clip(normalized,-1,1)),'mean_hits':float(np.mean([r['front_hits']+r['back_hits'] for r in results])),'results':results,'cost':10,'known_return':str(total),'pending':pending}))
+        session.add(CandidateScore(forecast_id=f.id,draw_fingerprint=draw.fingerprint,metrics={'brier':loss,'baseline':base,'normalized_gain':float(np.clip(normalized,-1,1)),'mean_hits':float(np.mean([result_hits(game,r) for r in results])),'results':results,'cost':10,'known_return':str(total),'pending':pending}))
     session.flush()
 
 def evidence(metrics,threshold):
@@ -165,7 +170,7 @@ def status(session,game):
             if score and f.created_at<f.cutoff_at and f.cutoff_issue<f.issue:
                 metrics.append(score.metrics);fingerprints.append(f'{f.id}:{d.fingerprint}')
         threshold=index*(index+1)/.05
-        candidates.append({'strategy':version,'model':rows[0].model,'forecast_count':len(rows),'failed':sum(bool(f.error) for f in rows),'latest_issue':rows[-1].issue,'latest_error':rows[-1].error,'current_version':version in versions().values(),'evidence_fingerprint':hashlib.sha256('|'.join(fingerprints).encode()).hexdigest(),**evidence(metrics,threshold)})
+        candidates.append({'strategy':version,'model':rows[0].model,'forecast_count':len(rows),'failed':sum(bool(f.error) for f in rows),'latest_issue':rows[-1].issue,'latest_error':rows[-1].error,'current_version':version in candidate_versions(game).values(),'evidence_fingerprint':hashlib.sha256('|'.join(fingerprints).encode()).hexdigest(),**evidence(metrics,threshold)})
     decisions=list(session.scalars(select(StrategyDecision).where(StrategyDecision.game==game).order_by(StrategyDecision.id.desc()).limit(20)))
     active=decisions[0].selected if decisions else UNIFORM
     return {'active':active,'minimum_samples':MIN_SAMPLES,'minimum_relative_gain':.01,'method':'Hoeffding mixture e-process; alpha_j=0.05/[j(j+1)] per game','candidates':candidates,'decisions':[{'id':d.id,'previous':d.previous,'selected':d.selected,'reason':d.reason,'created_at':d.created_at.isoformat()+'Z'} for d in decisions]}
