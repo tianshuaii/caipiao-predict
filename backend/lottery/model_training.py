@@ -23,6 +23,32 @@ MODEL_FORMAT='trained-context-v1'
 FEATURE_VERSION='legacy-indicators-v1'
 
 
+def zone_probability_vectors(game, history, recipe='bayesian'):
+    """Deterministic, zone-aware research baseline for the two new games."""
+    if recipe not in ('uniform', 'bayesian') or game not in ('qlc', 'qxc'):
+        raise ValueError('Unsupported new-game recipe')
+    if not history: raise ValueError('History is required')
+    versions={row.get('rule_version') for row in history if row.get('rule_version')}
+    if game == 'qxc' and len(versions) > 1:
+        raise ValueError('QXC history must use one rule version')
+    smoothing=20
+    if game == 'qlc':
+        result={}
+        for zone,count in (('basic',7),('special',1)):
+            values=np.zeros(30)
+            for row in history: values[np.asarray(row['zones'][zone],dtype=int)-1]+=1
+            prior=count/30
+            result[zone]=((values+smoothing*prior)/(len(history)+smoothing)).tolist()
+        return result
+    maxima=(10,10,10,10,10,10,15)
+    vectors=[]
+    for index,maximum in enumerate(maxima):
+        values=np.zeros(maximum)
+        for row in history: values[row['zones']['positions'][index]]+=1
+        vectors.append(((values+smoothing/maximum)/(len(history)+smoothing)).tolist())
+    return {'positions':vectors}
+
+
 def environment():
     return {'python':platform.python_version(),'numpy':np.__version__,
             'scipy':scipy.__version__,'sklearn':sklearn.__version__}
