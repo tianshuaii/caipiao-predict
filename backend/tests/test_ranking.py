@@ -29,6 +29,17 @@ def test_ties_empty_intersection_rules_and_rare_prizes():
     assert all(not g['issues'] for g in rank_records(rows,['a','b','failed'],'brier'))
 
 
+def test_zone_and_position_results_share_the_same_descriptive_ranking_contract():
+    qlc=[{'strategy':strategy,'issue':str(issue),'rule_version':'qlc-classic','brier':.1,
+          'results':[{'basic_hits':1,'special_hits':0,'level':None,'amount':'0'}]*5}
+         for strategy in ('uniform-v1','bayesian-zone-v1') for issue in range(30)]
+    qxc=[{'strategy':strategy,'issue':str(issue),'rule_version':'qxc-20201011','brier':.1,
+          'results':[{'position_hits':1,'level':None,'amount':'0'}]*5}
+         for strategy in ('uniform-v1','bayesian-zone-v1') for issue in range(30)]
+    assert all(row['rank']==1 for row in rank_records(qlc,['uniform-v1','bayesian-zone-v1'],'brier')[0]['rows'])
+    assert all(row['rank']==1 for row in rank_records(qxc,['uniform-v1','bayesian-zone-v1'],'brier')[0]['rows'])
+
+
 def test_read_only_api_validation(api):
     client,_=api
     assert client.get('/api/rankings?game=ssq&objective=brier').json()['groups']==[]

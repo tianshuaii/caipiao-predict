@@ -45,8 +45,8 @@ def rank_records(records,participants,objective):
 
 
 def ranking_status(session,game,objective='brier'):
-    from .prospective import versions
-    forecasts=list(session.scalars(select(CandidateForecast).where(CandidateForecast.game==game,CandidateForecast.strategy.in_(list(versions().values())))))
+    from .prospective import candidate_versions
+    forecasts=list(session.scalars(select(CandidateForecast).where(CandidateForecast.game==game,CandidateForecast.strategy.in_(list(candidate_versions(game).values())))))
     participants=sorted({f.strategy for f in forecasts})
     draws={d.issue:d for d in session.scalars(select(Draw).where(Draw.game==game))}
     scores={(s.forecast_id,s.draw_fingerprint):s.metrics for s in session.scalars(select(CandidateScore).join(CandidateForecast).where(CandidateForecast.game==game))}
