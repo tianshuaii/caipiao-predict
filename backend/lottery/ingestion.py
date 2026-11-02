@@ -4,6 +4,7 @@ import json
 from sqlalchemy import select
 from .domain import GAMES
 from .game_specs import draw_zones, validate_draw
+from .game_specs import game_spec
 from .models import Draw, Observation, Run, utcnow
 
 def fingerprint(data):
@@ -41,7 +42,7 @@ def coverage(session, game):
     rows = list(session.scalars(select(Draw).where(Draw.game == game).order_by(Draw.issue)))
     if not rows:
         return {'count': 0, 'complete': False, 'missing_count': 0, 'missing': [], 'first_issue': None, 'last_issue': None, 'conflicts': 0, 'prize_complete_count': 0}
-    first_year = int(GAMES[game]['first'][:4])
+    first_year = int((GAMES[game]['first'] if game in GAMES else game_spec(game, rows[0].issue).first)[:4])
     by_year = {}
     for row in rows: by_year.setdefault(int(row.issue[:4]), set()).add(int(row.issue[-3:]))
     missing = []
@@ -60,8 +61,10 @@ def coverage(session, game):
     missing = sorted(set(missing) | (expected - {r.issue for r in rows}))
     inventory_verified = bool(expected) and rows[0].issue in expected
     conflicts = sum(r.conflict for r in rows)
-    prize_complete = sum(all(r.data['prizes'].get(str(i), {}).get('amount') is not None and r.data['prizes'].get(str(i), {}).get('count') is not None for i in range(1, 7 if game == 'ssq' else (8 if r.issue >= '2026014' else 10 if r.issue >= '2019019' else 7))) for r in rows)
-    return {'count': len(rows), 'inventory_verified': inventory_verified, 'complete': inventory_verified and not missing and not missing_years and not conflicts and rows[0].issue == GAMES[game]['first'], 'first_issue': rows[0].issue, 'last_issue': rows[-1].issue, 'missing': missing[:100], 'missing_count': len(missing) + len(missing_years), 'missing_years': missing_years, 'conflicts': conflicts, 'prize_complete_count': prize_complete, 'note': '完整性按首期、年份、年内期号及官方分页核查；缺失奖金保持未知。'}
+    levels = 7 if game == 'qlc' else 6 if game == 'qxc' else 7 if game == 'ssq' else (8 if rows[-1].issue >= '2026014' else 10 if rows[-1].issue >= '2019019' else 7)
+    prize_complete = sum(all(r.data['prizes'].get(str(i), {}).get('amount') is not None and r.data['prizes'].get(str(i), {}).get('count') is not None for i in range(1, levels + 1)) for r in rows)
+    first_issue = GAMES[game]['first'] if game in GAMES else game_spec(game, rows[0].issue).first
+    return {'count': len(rows), 'inventory_verified': inventory_verified, 'complete': inventory_verified and not missing and not missing_years and not conflicts and rows[0].issue == first_issue, 'first_issue': rows[0].issue, 'last_issue': rows[-1].issue, 'missing': missing[:100], 'missing_count': len(missing) + len(missing_years), 'missing_years': missing_years, 'conflicts': conflicts, 'prize_complete_count': prize_complete, 'note': '完整性按首期、年份、年内期号及官方分页核查；缺失奖金保持未知。'}
 
 def record_inventory(session, game, source, issues):
     session.add(Run(kind='inventory', status='success', finished_at=utcnow(), details={'game':game,'source':source,'issues':sorted(issues)}))

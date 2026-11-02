@@ -50,6 +50,10 @@ def game_spec(game, issue):
         raise ValueError('Unknown game') from exc
 
 
+def registered_games():
+    return ('ssq', 'dlt', 'qlc', 'qxc')
+
+
 def _validate_zone(spec, values):
     if not isinstance(values, list) or len(values) != spec.count:
         raise ValueError(f'Wrong {spec.name} number count')

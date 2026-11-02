@@ -17,6 +17,8 @@ DLT_URL = 'https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry'
 CWL_URL = 'https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice'
 SH_URL = 'https://appsh.swlc.net.cn/shfcoc_datachart/datachart/ssq/lskj/ls_award.html'
 SH_HISTORY_URL = 'https://appsh.swlc.net.cn/shfcoc_ldatacenter/aword/execQueryAllAnalysis.ctl'
+SH_QLC_URL = 'https://appsh.swlc.net.cn/shfcoc_datachart/datachart/qlc/lskj/ls_award.html'
+JS_QXC_URL = 'https://api.js-lottery.com/Lottery/_ListData'
 ZHCW_URL = 'https://jc.zhcw.com/port/client_json.php'
 CHINESE = dict(zip('一二三四五六七八九', range(1, 10)))
 
@@ -59,7 +61,7 @@ def _raw_draw(game, issue, day, zones, prizes, url, sales=None, pool=None):
     date.fromisoformat(day)
     return {'game': game, 'issue': canonical, 'draw_date': day, 'zones': zones,
             'prizes': prizes, 'source_url': url, 'sales': number(sales),
-            'pool': number(pool)}
+            'pool': number(pool), 'rule_version': rule_version(game, canonical)}
 
 
 def parse_qlc_primary(row):
@@ -109,6 +111,29 @@ def parse_qxc_secondary(row):
         raise ValueError('七星彩 requires seven ordered digits')
     return _raw_draw('qxc', row['issue'], str(row['draw_date'])[:10],
                      {'positions': positions}, {}, row['source_url'])
+
+
+def _table_rows(text):
+    return [[re.sub(r'<[^>]+>', '', cell).strip() for cell in re.findall(r'<td[^>]*>(.*?)</td>', row, re.S)]
+            for row in re.findall(r'<tr[^>]*>(.*?)</tr>', text, re.S)]
+
+
+def parse_qlc_secondary_page(text):
+    rows = []
+    for cells in _table_rows(text):
+        if len(cells) >= 3 and re.fullmatch(r'\d{7}', cells[0]):
+            rows.append(parse_qlc_secondary({'issue': cells[0], 'draw_date': cells[1],
+                                             'numbers': cells[2], 'source_url': SH_QLC_URL}))
+    return rows
+
+
+def parse_qxc_secondary_page(text):
+    rows = []
+    for cells in _table_rows(text):
+        if len(cells) >= 3 and re.fullmatch(r'\d{5}', cells[1]):
+            rows.append(parse_qxc_secondary({'issue': cells[1], 'draw_date': cells[0],
+                                             'numbers': cells[2], 'source_url': JS_QXC_URL}))
+    return rows
 
 
 def parse_shanghai(text):
@@ -170,7 +195,7 @@ def fetch(session, http, source, url, params=None):
     error = None
     for attempt in range(3):
         try:
-            referer = {'zhcw': 'https://www.zhcw.com/', 'sporttery': 'https://www.lottery.gov.cn/', 'shanghai': 'https://appsh.swlc.net.cn/'}.get(source, 'https://www.cwl.gov.cn/')
+            referer = {'zhcw': 'https://www.zhcw.com/', 'sporttery': 'https://www.lottery.gov.cn/', 'shanghai': 'https://appsh.swlc.net.cn/', 'shanghai-qlc': 'https://appsh.swlc.net.cn/', 'jiangsu-qxc': 'https://www.js-lottery.com/'}.get(source, 'https://www.cwl.gov.cn/')
             response = http.get(url, params=params, headers={'Referer': referer})
             row = RawFetch(source=source, url=str(response.url), params=params or {}, status=response.status_code, body=response.text, sha256=hashlib.sha256(response.content).hexdigest())
             session.add(row)
@@ -188,25 +213,27 @@ def collect(session, game, full=False):
     from sqlalchemy import select
     from .models import Draw
     known = set(session.scalars(select(Draw.issue).where(Draw.game == game)))
-    source = 'sporttery' if game == 'dlt' else 'cwl'
+    if game not in {'ssq', 'dlt', 'qlc', 'qxc'}:
+        raise ValueError('Unknown game')
+    source = 'sporttery' if game in {'dlt', 'qxc'} else 'cwl'
     total, seen, pages = None, set(), 0
     with client() as http:
         for page in range(1, 301):
-            if game == 'dlt':
-                params = dict(gameNo=85, provinceId=0, pageSize=100, isVerify=1, pageNo=page)
+            if game in {'dlt', 'qxc'}:
+                params = dict(gameNo=85 if game == 'dlt' else '04', provinceId=0, pageSize=100, isVerify=1, pageNo=page)
                 raw = fetch(session, http, source, DLT_URL, params)
                 payload = json.loads(raw.body)
                 if not payload.get('success'): raise RuntimeError('Sporttery rejected query')
                 value = payload['value']
                 total = int(value['total'])
-                rows = [parse_sporttery(r) for r in value['list']]
+                rows = [(parse_sporttery if game == 'dlt' else parse_qxc_primary)(r) for r in value['list']]
             else:
-                params = dict(name='ssq', pageNo=page, pageSize=100, systemType='PC')
+                params = dict(name=game, pageNo=page, pageSize=100, systemType='PC')
                 raw = fetch(session, http, source, CWL_URL, params)
                 payload = json.loads(raw.body)
                 if payload.get('state') != 0: raise RuntimeError('CWL rejected query')
                 total = int(payload['total'])
-                rows = [parse_cwl(r) for r in payload['result']]
+                rows = [(parse_cwl if game == 'ssq' else parse_qlc_primary)(r) for r in payload['result']]
             if not rows: break
             ids = {r['issue'] for r in rows}
             if ids.issubset(seen): raise RuntimeError('Pagination repeated: refusing truncated history')
@@ -232,4 +259,20 @@ def collect(session, game, full=False):
                 crosscheck = {'source': 'shanghai', 'count': len(checkrows)}
             except (RuntimeError, ValueError, KeyError) as exc:
                 crosscheck = {'source': 'shanghai', 'error': str(exc)[:200]}
+        elif game in {'qlc', 'qxc'}:
+            try:
+                secondary = 'shanghai-qlc' if game == 'qlc' else 'jiangsu-qxc'
+                url = SH_QLC_URL if game == 'qlc' else JS_QXC_URL
+                params = None if game == 'qlc' else {'itemType': 's7', 'pageindex': 1}
+                raw = fetch(session, http, secondary, url, params)
+                parser = parse_qlc_secondary_page if game == 'qlc' else parse_qxc_secondary_page
+                checkrows = parser(raw.body)
+                if not checkrows:
+                    raise ValueError('Secondary response contains no draws')
+                for row in checkrows:
+                    ingest(session, row, raw.id, secondary)
+                session.commit()
+                crosscheck = {'source': secondary, 'count': len(checkrows)}
+            except (RuntimeError, ValueError, KeyError) as exc:
+                crosscheck = {'source': secondary, 'error': str(exc)[:200]}
     return {'game': game, 'source': source, 'source_total': total, 'received': len(seen), 'pages': pages, 'crosscheck': crosscheck}

@@ -72,3 +72,13 @@ def test_parse_qxc_secondary_preserves_position_order():
 
     assert actual['issue'] == '2026125'
     assert actual['zones']['positions'] == [2, 9, 4, 5, 6, 3, 2]
+
+
+def test_secondary_pages_keep_their_independent_number_records():
+    from lottery.collectors import parse_qlc_secondary_page, parse_qxc_secondary_page
+
+    qlc = parse_qlc_secondary_page((FIXTURES / 'qlc_secondary_page.html').read_text())
+    qxc = parse_qxc_secondary_page((FIXTURES / 'qxc_secondary_page.html').read_text())
+
+    assert qlc[0]['zones'] == {'basic': [2, 5, 10, 15, 22, 23, 28], 'special': [3]}
+    assert qxc[0]['zones']['positions'] == [2, 9, 4, 5, 6, 3, 2]
