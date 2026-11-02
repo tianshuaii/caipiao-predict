@@ -23,7 +23,7 @@ Old applications and MySQL were backed up offline in `/root/legacy-backup/legacy
 
 Do not start the local scheduler while the cloud scheduler runs. Local `scripts/local.py` honors `runtime/cloud-deployed` and skips its scheduler when present. Manual local workflow commands must not be run against a separate database with notifications enabled.
 
-Deployed code as of 2026-10-26 collects and analyzes daily at 22:30 Asia/Shanghai, retrying incomplete data at 23:00, 23:30 and 00:00. Monday/Wednesday/Friday 08:00 reports only read saved valid predictions (five tickets per game). Monthly backtests run on day 1 at 06:00. This schedule is active in production. Candidate strategies are not proven to improve winning probability.
+The deployed 2026-10-26 release is a two-game baseline. The four-game branch adds QLC/QXC schema, collection, scoring and UI support but has not been migrated, backfilled, or deployed to this server. After a reviewed backup and migration rehearsal, the updated scheduler runs daily collection at 22:30 Asia/Shanghai with retries at 23:00, 23:30 and 00:00; its 08:00 report reads only still-valid frozen predictions for games due that day. Monthly backtests run on day 1 at 06:00. Candidate strategies are not proven to improve winning probability.
 
 Manual backup on the server: `sh /opt/lottery/deploy/backup.sh`. This writes a transaction-consistent SQL dump plus prediction, research-model and monitoring runtime state under `/opt/lottery/backups`, with SHA-256 checksums. Run `sha256sum -c backups/<timestamp>/SHA256SUMS` from `/opt/lottery`. Download backups regularly; a backup on the same server does not cover server loss.
 
