@@ -81,5 +81,9 @@ def registered_versions(selection_protocol=None):
     result={}
     for strategy in ('frequency','logistic',*STRATEGIES):
         digest=fingerprint(strategy,selection_protocol)
-        result[strategy]=LEGACY_VERSIONS[strategy] if digest==BASELINE_HASHES.get(strategy) else f'{strategy}-v2-{digest[:32]}'
+        # Stored forecasts name the frozen legacy selection protocol. New game
+        # rules must not relabel those ssq/dlt records merely by extending a
+        # shared rule helper; all newly generated forecasts use WEIGHTED below.
+        result[strategy]=(LEGACY_VERSIONS[strategy] if selection_protocol == LEGACY_SELECTION and strategy in LEGACY_VERSIONS
+                          else f'{strategy}-v2-{digest[:32]}')
     return result
