@@ -21,7 +21,7 @@ app.include_router(auth_router)
 app.add_middleware(CORSMiddleware,allow_origins=['http://127.0.0.1:9998','http://localhost:9998'],allow_methods=['GET'],allow_headers=['Accept','Content-Type'])
 
 DB=Annotated[Session,Depends(database)]
-Game=Literal['dlt','ssq']
+Game=Literal['dlt','ssq','qlc','qxc']
 
 @app.exception_handler(SQLAlchemyError)
 async def database_error(request, exc):
@@ -162,10 +162,11 @@ def features_catalog():
 
 @app.get('/api/features')
 def features(db:DB,as_of:datetime,cutoff_issue:str,game:Game='dlt',
-             zone:Literal['front','back']='front',window:Literal['10','20','30','50','100','500','all']='20'):
+             zone:str='front',position:Annotated[int | None,Query(ge=1,le=7)]=None,
+             window:Literal['10','20','30','50','100','500','all']='20'):
     from .data_history import history_as_of
     from .domain import canonical_issue
-    from .feature_service import analyze_features
+    from .feature_service import analyze_features, analyze_position_features
     if as_of.tzinfo is None:
         raise HTTPException(422,'as_of 必须包含时区')
     try: cutoff=canonical_issue(cutoff_issue)
@@ -174,7 +175,10 @@ def features(db:DB,as_of:datetime,cutoff_issue:str,game:Game='dlt',
     if snapshot['conflicts'] or snapshot['unavailable_count']:
         raise HTTPException(409,{'message':'截止范围存在冲突或缺少当时观测，不能计算完整统计。',
                                  'conflicts':snapshot['conflicts'],'unavailable_count':snapshot['unavailable_count']})
-    result=analyze_features(snapshot['items'],game,zone,cutoff,int(window) if window!='all' else 'all')
+    try:
+        result=(analyze_position_features(snapshot['items'],game,position,cutoff,int(window) if window!='all' else 'all')
+                if position is not None else analyze_features(snapshot['items'],game,zone,cutoff,int(window) if window!='all' else 'all'))
+    except ValueError as exc: raise HTTPException(422,str(exc)) from exc
     return {**result,'as_of':snapshot['as_of'],'data_mode':snapshot['mode']}
 
 @app.get('/api/research/selection')
