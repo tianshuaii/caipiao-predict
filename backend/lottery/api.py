@@ -48,7 +48,7 @@ def schedule_view():
             status=json.loads(heartbeat.read_text())
             status['running']=(datetime.now(timezone.utc)-datetime.fromisoformat(status['heartbeat'])).total_seconds()<120
         except (ValueError,KeyError): status={'running':False}
-    return {'timezone':'Asia/Shanghai','label':'每天22:30分析，未齐则重试至00:00；周一、三、五08:00推送','next_run':next_run.isoformat(),'scheduler':status}
+    return {'timezone':'Asia/Shanghai','label':'每天22:30分析，未齐则重试至00:00；每天08:00推送','next_run':next_run.isoformat(),'scheduler':status}
 
 @app.get('/api/health')
 def health(db:DB):
