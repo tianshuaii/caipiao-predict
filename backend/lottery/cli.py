@@ -5,6 +5,8 @@ from pathlib import Path
 from .db import session_factory
 
 def main():
+    from .game_specs import registered_games
+    games=registered_games()
     parser=argparse.ArgumentParser(description='Lottery Lab operations')
     sub=parser.add_subparsers(dest='command',required=True)
     worker=sub.add_parser('research-worker');worker.add_argument('--once',action='store_true')
@@ -12,13 +14,13 @@ def main():
     watchdog.add_argument('--watch',action='store_true')
     watchdog.add_argument('--send',action='store_true',help='显式启用独立监控微信通知')
     sub.add_parser('init-db')
-    sync=sub.add_parser('sync');sync.add_argument('--game',choices=['dlt','ssq','all'],default='all');sync.add_argument('--full',action='store_true')
+    sync=sub.add_parser('sync');sync.add_argument('--game',choices=[*games,'all'],default='all');sync.add_argument('--full',action='store_true')
     sub.add_parser('archive')
     cases=sub.add_parser('cases',help='采集官方一等奖票型报道，不参与预测')
     cases.add_argument('--url',action='append',help='官方报道URL，可多次指定')
     cases.add_argument('--limit',type=int,default=20)
     run=sub.add_parser('run',help='同步、复盘、预测；不生成或发送通知');run.add_argument('--no-notify',action='store_true',help='兼容旧命令；run 已默认不发通知')
-    backtest=sub.add_parser('backtest');backtest.add_argument('--game',choices=['dlt','ssq','all'],default='all');backtest.add_argument('--periods',type=int,default=60)
+    backtest=sub.add_parser('backtest');backtest.add_argument('--game',choices=[*games,'all'],default='all');backtest.add_argument('--periods',type=int,default=60)
     backtest.add_argument('--data-mode',choices=['current-revised','retained-as-of'],default='current-revised')
     statistics=sub.add_parser('statistics',help='离线快照统计检验；不采集或推送')
     statistics.add_argument('dataset');statistics.add_argument('--simulations',type=int,default=999)
@@ -59,14 +61,14 @@ def main():
             from .prospective import evaluate_existing, status
             from .workflow import workflow_lock
             with workflow_lock():
-                for game in ['dlt','ssq']:
+                for game in games:
                     evaluate_existing(session,game)
                     session.commit()
                     print(json.dumps(status(session,game),ensure_ascii=False))
         elif args.command=='sync':
             from .collectors import collect,collect_archive
             from .ingestion import coverage
-            for game in (['dlt','ssq'] if args.game=='all' else [args.game]):
+            for game in (games if args.game=='all' else [args.game]):
                 result=collect(session,game,args.full)
                 if args.full and game=='ssq': result['archive']=collect_archive(session)
                 print(json.dumps({**result,'coverage':coverage(session,game)},ensure_ascii=False))
@@ -75,13 +77,13 @@ def main():
             print(json.dumps(collect_archive(session),ensure_ascii=False))
         elif args.command=='backtest':
             from .experiments import backtest
-            for game in (['dlt','ssq'] if args.game=='all' else [args.game]):
+            for game in (games if args.game=='all' else [args.game]):
                 print(json.dumps(backtest(session,game,args.periods,args.data_mode),ensure_ascii=False),flush=True)
         elif args.command=='status':
             from .ingestion import coverage
             from .config import sendkey
             from .api import schedule_view
-            print(json.dumps({'coverage':{g:coverage(session,g) for g in ['dlt','ssq']},'schedule':schedule_view(),'serverchan_configured':bool(sendkey())},ensure_ascii=False))
+            print(json.dumps({'coverage':{g:coverage(session,g) for g in games},'schedule':schedule_view(),'serverchan_configured':bool(sendkey())},ensure_ascii=False))
         elif args.command=='replay':
             from .models import Prediction
             from .selection import replay_tickets
