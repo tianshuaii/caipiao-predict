@@ -209,15 +209,25 @@ def analyze_position_features(rows, game, position, cutoff_issue, window='all'):
     for row in selected:
         if row.get('conflict'): raise ValueError('Unresolved source conflict')
         validate_draw(game,row['issue'],row['zones'])
+    available=len(selected)
     if window != 'all': selected=selected[-window:]
     maximum=15 if position == 7 else 10
     values=[row['zones']['positions'][position-1] for row in selected]
     counts=Counter(values); n=len(values)
     omissions=[next((offset for offset,value in enumerate(reversed(values)) if value == number),n) for number in range(maximum)]
     transitions=Counter(zip(values,values[1:]))
+    digest=hashlib.sha256(json.dumps([{'issue':row['issue'],'position':row['zones']['positions'][position-1]} for row in selected],sort_keys=True).encode()).hexdigest()
     return {'version':VERSION,'game':game,'position':position,'cutoff_issue':cutoff_issue,'window':window,
             'sample_size':n,'numbers':[{'number':number,'count':counts[number],'frequency':counts[number]/n if n else None,
-                                         'current_omission':omissions[number],'route_012':number % 3}
+                                         'current_omission':omissions[number],'left_censored':omissions[number] == n,
+                                         'max_omission':None,'mean_omission':None,'completed_intervals':0,
+                                         'hot_rank':int(1+sum(value>counts[number] for value in counts.values())),
+                                         'cold_rank':int(1+sum(value<counts[number] for value in counts.values())),
+                                         'route_012':number % 3}
                                         for number in range(maximum)],
             'transitions':[{'from':before,'to':after,'count':count} for (before,after),count in sorted(transitions.items())],
+            'available_records':available,'short_window':window!='all' and n<window,
+            'first_issue':selected[0]['issue'] if n else None,'last_issue':selected[-1]['issue'] if n else None,
+            'theory':{'number_probability':1/maximum,'assumption':'每一位置独立、均匀；位置频率不是下一期预测。'},
+            'distributions':{'sum':[],'odd':[],'small':[]},'combinations':[],'dataset_hash':digest,
             'notes':['位置特征仅描述保留历史；位置转移不代表未来优势。']}

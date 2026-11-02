@@ -29,8 +29,18 @@ def probability_vectors(game, history, strategy):
     from .model_training import fit_model, predict_model
     return predict_model(fit_model(game,history,strategy))
 
-def hits(ticket, actual):
+def hits(game, ticket, actual):
+    if game == 'qlc':
+        zones=actual['zones']
+        return len(set(ticket['basic'])&set(zones['basic'])) + int(ticket['special'][0] == zones['special'][0])
+    if game == 'qxc':
+        return sum(value == actual['zones']['positions'][index] for index,value in enumerate(ticket['positions']))
     return len(set(ticket['front'])&set(actual['front'])) + len(set(ticket['back'])&set(actual['back']))
+
+def marginal_vectors(game, probabilities, actual):
+    from .prospective import brier_vectors
+    predicted,target,_=brier_vectors(game,probabilities,actual)
+    return predicted,target
 
 def evaluate_history(game, rows, test_count=60, simulations=200, history_provider=None):
     if test_count < 1 or simulations < 1:
@@ -39,10 +49,10 @@ def evaluate_history(game, rows, test_count=60, simulations=200, history_provide
         raise ValueError('At least 161 historical draws required')
     start=max(PROTOCOL['warmup'],len(rows)-test_count)
     test=rows[start:]
-    names=['uniform','frequency','logistic',*STRATEGIES]
+    names=['uniform','bayesian'] if game in ('qlc','qxc') else ['uniform','frequency','logistic',*STRATEGIES]
     from .experiment_registry import fingerprint
     from .performance import performance_report
-    experiment_versions={name:UNIFORM if name=='uniform' else fingerprint(name) for name in names}
+    experiment_versions={name:(UNIFORM if name=='uniform' else 'bayesian-zone-v1') if game in ('qlc','qxc') else (UNIFORM if name=='uniform' else fingerprint(name)) for name in names}
     series={name:[] for name in names}
     hit_series={name:[] for name in names}
     audits=[]
@@ -64,10 +74,9 @@ def evaluate_history(game, rows, test_count=60, simulations=200, history_provide
                 prob=probability_vectors(game,past,name)
                 tickets=select_tickets(game,seed) if name=='uniform' else select_tickets(game,seed,protocol=WEIGHTED,probabilities=prob)
                 results=[settle_ticket(game,t,actual) for t in tickets]
-                pred=np.array(prob['front']+prob['back'])
-                target=np.concatenate([encoded([actual],k,GAMES[game][k][0])[0] for k in ['front','back']])
+                pred,target=marginal_vectors(game,prob,actual)
                 forecast.update(probabilities=prob,tickets=tickets,brier=float(np.mean((pred-target)**2)),
-                                mean_hits=float(np.mean([hits(t,actual) for t in tickets])))
+                                mean_hits=float(np.mean([hits(game,t,actual) for t in tickets])))
             except Exception as exc:
                 error=type(exc).__name__+': model generation or evaluation failed'
                 results=None
@@ -83,14 +92,15 @@ def evaluate_history(game, rows, test_count=60, simulations=200, history_provide
     common=set(comparison['issues'])
     for actual,audit in zip(test,audits):
         if actual['issue'] not in common: continue
-        target=np.concatenate([encoded([actual],k,GAMES[game][k][0])[0] for k in ['front','back']])
+        _,target=marginal_vectors(game,audit['forecasts']['uniform']['probabilities'],actual)
         for name in names:
             forecast=audit['forecasts'][name]
             series[name].append(forecast['brier']);hit_series[name].append(forecast['mean_hits'])
-            calibration[name].extend(zip(forecast['probabilities']['front']+forecast['probabilities']['back'],target.tolist()))
+            predicted,_=marginal_vectors(game,forecast['probabilities'],actual)
+            calibration[name].extend(zip(predicted.tolist(),target.tolist()))
     random_hits=[]
     for simulation in range(simulations if common else 0):
-        random_hits.append(float(np.mean([hits(t,actual) for j,actual in enumerate(test) if actual['issue'] in common for t in select_tickets(game,PROTOCOL['seed']+simulation*10000+j)])))
+        random_hits.append(float(np.mean([hits(game,t,actual) for j,actual in enumerate(test) if actual['issue'] in common for t in select_tickets(game,PROTOCOL['seed']+simulation*10000+j)])))
     comparisons=[]
     for name in names[1:]:
         p=float(ttest_rel(series['uniform'],series[name]).pvalue) if len(common)>1 else 1.0

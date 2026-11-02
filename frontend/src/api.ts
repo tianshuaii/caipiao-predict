@@ -1,12 +1,17 @@
-export type Game = 'dlt' | 'ssq';
-export type Ticket = { front: number[]; back: number[] };
+export type Game = 'dlt' | 'ssq' | 'qlc' | 'qxc';
+export type Ticket = {
+  front: number[]; back: number[];
+  basic?: number[]; special?: number[]; positions?: number[];
+  zones?: { basic?: number[]; special?: number[]; positions?: number[] };
+};
 export type Award = { amount: string | null; count: number | null; raw_amount?: string };
 export type Draw = Ticket & { id: number; game: Game; issue: string; draw_date: string; sales: string | null; pool: string | null; prizes: Record<string, Award>; source: string; sources: string[]; source_url: string; revision: number; conflict: boolean; updated_at: string; rule_version: string };
-export type Settlement = { results: (Ticket & { front_hits: number; back_hits: number; level: number | null; amount: string | null })[]; summary: { pending: number; known_amount: string; amount: string | null; cost: string; net: string | null; winning_tickets: number; rule_version: string }; created_at: string };
+export type SettlementResult = Ticket & { front_hits?: number; back_hits?: number; basic_hits?: number; special_hits?: number; position_hits?: number; level: number | null; amount: string | null };
+export type Settlement = { results: SettlementResult[]; summary: { pending: number; known_amount: string; amount: string | null; cost: string; net: string | null; winning_tickets: number; rule_version: string }; created_at: string };
 export type Prediction = { id: number; game: Game; issue: string; draw_date: string; created_at: string; cutoff_issue: string; strategy: string; seed: string; dataset_hash: string; tickets: Ticket[]; actual: Draw | null; settlement: Settlement | null; provenance: { rationale: string; code_sha256: string; sales_cutoff: string } };
 export type Coverage = { count: number; complete: boolean; first_issue: string | null; last_issue: string | null; missing_count: number; conflicts: number; prize_complete_count: number; missing_years?: number[] };
 export type Schedule = { label: string; timezone: string; next_run: string; scheduler: { running: boolean; heartbeat?: string } };
-export type GameOverview = { name: string; latest: Draw | null; prediction: Prediction | null; coverage: Coverage; recent: Draw[]; frequency: { number: number; count: number }[]; stats: { predictions: number; settled_periods: number; committed_cost: number; settled_cost: number; return: number; net: number; winning_tickets: number } };
+export type GameOverview = { name: string; zones?: string[]; latest: Draw | null; prediction: Prediction | null; coverage: Coverage; recent: Draw[]; frequency: { number: number; count: number }[]; stats: { predictions: number; settled_periods: number; committed_cost: number; settled_cost: number; return: number; net: number; winning_tickets: number } };
 export type Overview = { games: Record<Game, GameOverview>; schedule: Schedule; generated_at: string };
 export type StrategyMetric = { strategy: string; brier: number | null; mean_hits: number | null; evaluated_periods?: number; failed_periods?: number; cost: number; known_return: number; net: number | null; pending_tickets: number; holm_p: number | null; calibration: { predicted: number; observed: number; count: number }[] };
 export type Experiment = { id: number; created_at: string; evaluation_periods: number; from_issue: string; to_issue: string; training_cutoff: string; strategies: StrategyMetric[]; random_simulations: number; random_hit_interval: number[] | null; comparison?: { issues: string[]; excluded: { issue: string; reason: string }[] }; conclusion: string; protocol: { version: string }; dataset_hash: string };
@@ -25,7 +30,7 @@ export type StrategyStatus = {
   portfolio?: PortfolioStatus;
   active: string; minimum_samples: number; minimum_relative_gain: number;
   candidates: { strategy: string; model: string; current_version: boolean; samples: number; forecast_count: number; failed: number; latest_error: string | null; brier: number | null; baseline: number | null; relative_gain: number | null; e_value: number; threshold: number; eligible: boolean }[];
-  forecasts: { id: number; issue: string; strategy: string; tickets: Ticket[]; error: string | null; created_at: string; metrics: { brier: number; baseline: number; mean_hits: number; known_return: string; pending: number; cost: number; results: {front_hits: number; back_hits: number; amount: string | null; level: number | null}[] } | null }[];
+  forecasts: { id: number; issue: string; strategy: string; tickets: Ticket[]; error: string | null; created_at: string; metrics: { brier: number; baseline: number; mean_hits: number; known_return: string; pending: number; cost: number; results: SettlementResult[] } | null }[];
   decisions: { id: number; previous: string; selected: string; reason: string; created_at: string }[];
 };
 

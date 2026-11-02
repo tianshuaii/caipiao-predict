@@ -25,6 +25,7 @@ export function AnalysisPanel({game,latestIssue}:{game:Game;latestIssue:string|n
     const controller=new AbortController();setData(null);setError('');setOffset(0);
     if(!issue)return ()=>controller.abort();
     const params=new URLSearchParams({game,zone,window,cutoff_issue:issue,as_of:stamp});
+    if(game==='qxc')params.set('position',zone.replace('position-',''));
     async function load(){
       const response=await fetch('/api/features?'+params,{signal:controller.signal});
       const body=await response.json();
@@ -37,11 +38,13 @@ export function AnalysisPanel({game,latestIssue}:{game:Game;latestIssue:string|n
     load().catch(e=>{if(!controller.signal.aborted)setError(String(e));});
     return ()=>controller.abort();
   },[game,zone,window,issue,stamp]);
+  useEffect(()=>setZone(game==='qlc'?'basic':game==='qxc'?'position-1':'front'),[game]);
+  const zoneOptions=game==='qlc' ? [['basic','基本号'],['special','特别号']] : game==='qxc' ? Array.from({length:7},(_,index)=>[`position-${index+1}`,`第${index+1}位`]) : [['front',game==='ssq'?'红球':'前区'],['back',game==='ssq'?'蓝球':'后区']];
   return <section className="panel analysis-panel">
     <h2>号码分析 · 历史描述</h2><p>热号、冷号和遗漏反映已保留的数据，不代表下期更容易或更难开出。</p>
     <div className="analysis-controls">
       <label>统计窗口<select value={window} onChange={e=>setWindow(e.target.value)}>{[10,20,30,50,100,500,'all'].map(w=><option key={w} value={w}>{w==='all'?'全部保留记录':`最近${w}条记录`}</option>)}</select></label>
-      <label>号码区<select value={zone} onChange={e=>setZone(e.target.value)}><option value="front">{game==='ssq'?'红球':'前区'}</option><option value="back">{game==='ssq'?'蓝球':'后区'}</option></select></label>
+      <label>{game==='qxc'?'开奖位置':'号码区'}<select value={zone} onChange={e=>setZone(e.target.value)}>{zoneOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
       <form onSubmit={e=>{e.preventDefault();setCutoff(draft);}}><label>截止期号（含本期）<input pattern="[0-9]{7}" inputMode="numeric" placeholder={snapshotIssue || '七位期号'} value={draft} onChange={e=>setDraft(e.target.value)} /></label><Button type="submit">应用</Button><Button type="button" onPress={()=>{setDraft('');setCutoff('');}}>最新</Button></form>
       <Button onPress={()=>{setSnapshotIssue(latestIssue);setStamp(new Date().toISOString());}}>刷新观测时点</Button>
     </div>

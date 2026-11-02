@@ -76,6 +76,6 @@ def serve():
         heartbeat()
         scheduled_run()  # Catch up only inside the bounded collection window.
         morning_report()  # Morning report is idempotent and never fetches data.
-        print('Scheduler: daily 22:30 analysis; retries until 00:00; M/W/F 08:00 report',flush=True)
+        print('Scheduler: daily 22:30 analysis; retries until 00:00; daily 08:00 report',flush=True)
         try: scheduler.start()
         finally: (RUNTIME/'scheduler.json').unlink(missing_ok=True)

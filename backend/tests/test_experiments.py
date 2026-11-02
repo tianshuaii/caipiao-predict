@@ -5,6 +5,12 @@ from lottery.predict import generate_tickets
 def history(n):
     return [dict(generate_tickets('ssq', i, 1)[0], issue=f'2025{i+1:03d}', prizes={}, rule_version='ssq-classic') for i in range(n)]
 
+def qlc_history(n):
+    return [dict(issue=f'2025{i+1:03d}', zones={'basic':list(range(1,8)), 'special':[8]}, prizes={}, rule_version='qlc-classic') for i in range(n)]
+
+def qxc_history(n):
+    return [dict(issue=f'202{i // 300 + 4}{i % 300 + 1:03d}', zones={'positions':[i % 10]*6+[i % 15]}, prizes={}, rule_version='qxc-2020100') for i in range(n)]
+
 def test_uniform_baseline_matches_combinatorics():
     p=probability_vectors('ssq', history(160), 'uniform')
     assert np.allclose(p['front'], 6/33)
@@ -29,6 +35,18 @@ def test_walk_forward_marks_cutoffs_and_equal_budgets():
     assert all(row['cost']==30 for row in report['strategies'])
     assert all(row['cutoff_issue'] < row['target_issue'] for row in report['forecast_audit'])
     assert report['production_strategy']=='uniform-v1'
+
+
+def test_qlc_walk_forward_uses_zone_marginals():
+    report=evaluate_history('qlc',qlc_history(161),test_count=1,simulations=1)
+    assert [row['strategy'] for row in report['strategies']]==['uniform','bayesian']
+    assert all(row['cost']==10 for row in report['strategies'])
+
+
+def test_qxc_walk_forward_uses_position_marginals():
+    report=evaluate_history('qxc',qxc_history(161),test_count=1,simulations=1)
+    assert [row['strategy'] for row in report['strategies']]==['uniform','bayesian']
+    assert all(row['evaluated_periods']==1 for row in report['strategies'])
 
 
 def test_point_in_time_backtest_never_falls_back_to_current_history():

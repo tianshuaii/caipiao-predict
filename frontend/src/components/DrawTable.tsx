@@ -8,7 +8,7 @@ import { Balls } from './Balls';
 export function money(value: string | number | null | undefined) {
   return value == null ? '待公布' : Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
-export const sourceNames: Record<string, string> = { cwl: '中国福彩网', sporttery: '中国体育彩票', shanghai: '上海福彩', zhcw: '中彩网 · 福彩指定媒体' };
+export const sourceNames: Record<string, string> = { cwl: '中国福彩网', sporttery: '中国体育彩票', shanghai: '上海福彩', zhcw: '中彩网 · 福彩指定媒体', 'shanghai-qlc': '上海福彩 · 七乐彩', 'jiangsu-qxc': '江苏体彩 · 七星彩' };
 
 export function DrawTable({ rows, history = false }: { rows: Draw[]; history?: boolean }) {
   const [expanded, setExpanded] = useState<string | null>(null);
